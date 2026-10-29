@@ -1,0 +1,1447 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rechnungen</title>
+<meta name="description" content="Rechnungsgenerator für Kfz-Zulassungsdienste – alle Daten bleiben lokal im Browser.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#15181e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<style>
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; } img { max-width: 100%; } [hidden] { display: none !important; }
+</style>
+<style>
+/* Layout: Werkbank – links das Formular wie ein Zulassungsantrag, rechts das A4-Blatt live; oben Reiter für Archiv und Stammdaten. */
+:root {
+  --bg: #eef0f3;
+  --surface: #ffffff;
+  --surface-2: #f6f7f9;
+  --ink: #15181e;
+  --muted: #5b6270;
+  --line: #d8dbe1;
+  --accent: #0b3a8c;        /* EU-Blau des Kennzeichens */
+  --accent-soft: #e3eaf8;
+  --accent-ink: #ffffff;
+  --plate-star: #f4c400;
+  --ok: #17803d;
+  --ok-soft: #e1f3e7;
+  --warn: #a35a00;
+  --warn-soft: #fbefd9;
+  --danger: #b42318;
+  --danger-soft: #fbe5e3;
+  --focus: #2f6bf0;
+  --paper: #ffffff;          /* Rechnung bleibt Papierweiß in beiden Themen */
+  --paper-ink: #1a1a1a;
+  --paper-muted: #5f5f5f;
+  --paper-band: #e4e4e4;
+  --paper-band-2: #ededed;
+  --paper-band-3: #dadada;
+  --shadow: 0 1px 2px rgba(20, 24, 32, .06), 0 8px 24px rgba(20, 24, 32, .08);
+  --f-display: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-paper: Helvetica, Arial, "Liberation Sans", sans-serif;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111318; --surface: #1a1d23; --surface-2: #20242b; --ink: #e9ebef; --muted: #9ba2ae; --line: #2e333c;
+    --accent: #7ea2ff; --accent-soft: #1d2a47; --accent-ink: #0b1430; --ok: #5fd08a; --ok-soft: #173323;
+    --warn: #f0b45a; --warn-soft: #3a2b12; --danger: #ff8a7f; --danger-soft: #3d1a17; --focus: #8fb0ff;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111318; --surface: #1a1d23; --surface-2: #20242b; --ink: #e9ebef; --muted: #9ba2ae; --line: #2e333c;
+  --accent: #7ea2ff; --accent-soft: #1d2a47; --accent-ink: #0b1430; --ok: #5fd08a; --ok-soft: #173323;
+  --warn: #f0b45a; --warn-soft: #3a2b12; --danger: #ff8a7f; --danger-soft: #3d1a17; --focus: #8fb0ff;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Kopfzeile */
+.topbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar-inner { display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); max-width: 1560px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-plate { display: inline-flex; align-items: stretch; border: 2px solid var(--ink); border-radius: 5px; overflow: hidden; height: 30px; background: #fff; }
+.brand-plate .eu { background: #003399; width: 16px; display: grid; place-items: center; }
+.brand-plate .txt { font-family: var(--f-display); font-weight: 700; font-size: 19px; letter-spacing: .06em; color: #111; padding: 0 8px; display: grid; place-items: center; }
+.brand-name { font-family: var(--f-display); font-weight: 600; font-size: 20px; letter-spacing: .01em; white-space: nowrap; }
+.tabs { display: flex; gap: 2px; flex-wrap: wrap; }
+.tab { border: 0; background: transparent; padding: 7px 12px; border-radius: 6px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+.tab:hover { background: var(--surface-2); color: var(--ink); }
+.tab[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.store-pill { margin-left: auto; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.store-pill.ok { background: var(--ok-soft); color: var(--ok); }
+.store-pill.warn { background: var(--warn-soft); color: var(--warn); }
+
+main { max-width: 1560px; margin: 0 auto; padding-block: 20px 120px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Rechnung-Ansicht */
+.workbench { display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 1080px) { .workbench { grid-template-columns: minmax(0, 1fr); } }
+.form { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.block { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.block h2 { margin: 0; font-family: var(--f-display); font-size: 15px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.grid { display: grid; gap: 10px 12px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.span-6 { grid-column: span 6; } .span-4 { grid-column: span 4; } .span-3 { grid-column: span 3; } .span-2 { grid-column: span 2; }
+@media (max-width: 520px) { .span-3, .span-2, .span-4 { grid-column: span 6; } .span-2.keep { grid-column: span 3; } }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label, .lbl { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.field .hint { font-size: 12px; color: var(--muted); }
+input[type=text], input[type=date], input[type=number], select, textarea {
+  width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+textarea { resize: vertical; min-height: 56px; }
+input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var(--line) 50%, var(--muted)); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { flex: 1; border: 0; background: var(--surface); padding: 8px 6px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* Kennzeichen-Eingabe im Stil eines Euro-Kennzeichens */
+.plate { display: flex; align-items: stretch; border: 2.5px solid #111; border-radius: 7px; overflow: hidden; background: #fff; height: 52px; max-width: 340px; }
+.plate .eu { background: #003399; width: 34px; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #fff; font-family: var(--f-display); font-weight: 600; font-size: 15px; }
+.plate input { border: 0; border-radius: 0; background: #fff; color: #111; font-family: var(--f-display); font-weight: 700; font-size: 30px; letter-spacing: .08em; text-transform: uppercase; padding: 0 12px; }
+.plate input::placeholder { color: #b9b9b9; }
+.plate:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Positionen */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+.chip.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.positions { display: flex; flex-direction: column; gap: 8px; }
+.pos { border: 1px solid var(--line); border-radius: 7px; padding: 10px; display: grid; gap: 8px; grid-template-columns: 28px minmax(0, 1fr) 70px 96px 74px 92px 30px; align-items: center; background: var(--surface); }
+.pos .no { font-weight: 700; color: var(--muted); font-size: 13px; }
+.pos .zus { grid-column: 2 / span 5; }
+.pos .sum { text-align: right; font-weight: 700; }
+.pos .del { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 4px; border-radius: 4px; }
+.pos .del:hover { color: var(--danger); background: var(--danger-soft); }
+.pos.warn { border-color: var(--warn); background: var(--warn-soft); }
+.pos .msg { grid-column: 2 / -1; font-size: 12px; color: var(--warn); font-weight: 600; }
+.pos input, .pos select { padding: 6px 8px; }
+.pos-head { display: grid; grid-template-columns: 28px minmax(0, 1fr) 70px 96px 74px 92px 30px; gap: 8px; padding: 0 11px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.pos-head .r, .pos .r { text-align: right; }
+@media (max-width: 620px) {
+  .pos, .pos-head { grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 30px; }
+  .pos-head { display: none; }
+  .pos .name { grid-column: 2 / span 2; }
+  .pos .del { grid-column: 4; grid-row: 1; }
+  .pos .menge, .pos .preis, .pos .ust, .pos .sum { grid-column: span 1; }
+  .pos .menge { grid-column: 2; } .pos .preis { grid-column: 3; } .pos .ust { grid-column: 2; } .pos .sum { grid-column: 3; }
+  .pos .zus { grid-column: 2 / span 2; }
+}
+.empty { border: 1px dashed var(--line); border-radius: 7px; padding: 18px; text-align: center; color: var(--muted); font-size: 14px; }
+
+/* Vorschau */
+.preview-col { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 70px); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+@media (max-width: 1080px) { .preview-col { position: static; } }
+.preview-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.sheet-wrap { width: 100%; overflow: hidden; border-radius: 3px; box-shadow: var(--shadow); background: var(--paper); }
+.sheet { width: 210mm; min-height: 297mm; position: relative; background: var(--paper); color: var(--paper-ink); font-family: var(--f-paper); transform-origin: top left; font-size: 10pt; line-height: 1.25; }
+.sheet .s-name { position: absolute; right: 20mm; top: 15mm; font-size: 22pt; letter-spacing: -.01em; text-align: right; }
+.sheet .s-tag { position: absolute; right: 20mm; top: 26.5mm; font-size: 8pt; color: var(--paper-muted); text-align: right; }
+.sheet .s-sender { position: absolute; left: 20mm; top: 46.5mm; width: 85mm; font-size: 7pt; border-bottom: .25mm solid #444; padding-bottom: .4mm; white-space: nowrap; overflow: hidden; }
+.sheet .s-addr { position: absolute; left: 20mm; top: 52.5mm; width: 85mm; font-size: 10pt; line-height: 5mm; }
+.sheet .s-info { position: absolute; left: 120mm; width: 70mm; top: 45mm; }
+.sheet .s-info .nr { display: flex; justify-content: space-between; font-size: 12pt; margin-bottom: 1.6mm; }
+.sheet .s-info .nr b { font-weight: 700; }
+.sheet .s-info .row { display: flex; justify-content: space-between; font-size: 8pt; line-height: 4.6mm; }
+.sheet .s-info .row span:first-child { color: #404040; }
+.sheet .s-body { padding: 88mm 20mm 34mm; }
+.sheet h1 { font-size: 13pt; margin: 0 0 1.5mm; font-weight: 700; }
+.sheet .s-ref { font-size: 9pt; color: #404040; margin-bottom: 4mm; }
+.sheet .s-p { margin: 0 0 3.5mm; }
+.sheet .s-note { text-align: right; font-size: 6.5pt; font-style: italic; color: #7f7f7f; margin-bottom: .8mm; }
+.sheet table { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+.sheet thead tr { background: var(--paper-band); }
+.sheet th { text-align: left; font-weight: 700; padding: 1.6mm 1.2mm; }
+.sheet th.r, .sheet td.r { text-align: right; }
+.sheet td { padding: 1.6mm 1.2mm .6mm; vertical-align: top; }
+.sheet td .pn { font-weight: 700; }
+.sheet td .pz { font-size: 8.5pt; color: var(--paper-muted); margin-top: .4mm; }
+.sheet .t-sep td { border-bottom: .25mm solid #a6a6a6; padding: 0; height: 2mm; }
+.sheet .tot td { padding: 1.3mm 1.2mm; }
+.sheet .tot.band { background: var(--paper-band-2); }
+.sheet .tot.grand { background: var(--paper-band-3); }
+.sheet .tot.grand td { font-weight: 700; font-size: 10pt; }
+.sheet .tot td:first-child { background: var(--paper); }
+.sheet .tot .m { font-size: 8pt; color: #6b6b6b; text-align: right; }
+.sheet .s-foot-note { font-size: 7pt; color: var(--paper-muted); margin: 3mm 0 0; }
+.sheet .s-pay { display: flex; gap: 6mm; align-items: flex-start; margin-top: 6mm; }
+.sheet .s-pay p { margin: 0 0 3mm; font-size: 9.5pt; flex: 1; min-width: 0; }
+.sheet .s-qr { width: 23mm; flex: none; text-align: center; font-size: 6pt; color: var(--paper-muted); }
+.sheet .s-qr svg { width: 23mm; height: 23mm; display: block; }
+.sheet .s-greet { margin-top: 5mm; font-size: 9.5pt; }
+.sheet .s-foot { position: absolute; left: 20mm; right: 20mm; bottom: 10mm; border-top: .25mm solid #a6a6a6; padding-top: 2mm; display: grid; grid-template-columns: 48mm 40mm 38mm 1fr; font-size: 7pt; color: #404040; line-height: 3.3mm; }
+.sheet .s-sample { position: absolute; left: 20mm; top: 8mm; font-size: 7pt; font-weight: 700; letter-spacing: .12em; color: #b06a00; text-transform: uppercase; }
+
+/* Rechnungslayout „Neu“ – DIN 5008 Form B, schlicht: eine Schrift, Schwarz und ein Grau */
+.sheet.m { --m-ink: #1d1d1f; --m-mute: #6b6b6b; --m-light: #cfcfcf; color: var(--m-ink); font-size: 9pt; line-height: 1.3; }
+.sheet.m thead tr { background: none; }
+.sheet.m sup { font-size: 60%; line-height: 0; vertical-align: .55em; }
+.m-fold { position: absolute; left: 4mm; width: 4mm; border-top: .2mm solid #b4b4b4; }
+.m-fold.hole { width: 5mm; }
+.m-head { position: absolute; left: 25mm; right: 20mm; top: 14mm; height: 15mm; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: .15mm solid var(--m-light); }
+.m-name { font-size: 14pt; font-weight: 700; line-height: 1.2; }
+.m-tag, .m-contact { font-size: 7.5pt; color: var(--m-mute); line-height: 3.4mm; }
+.m-contact { text-align: right; padding-top: 1mm; }
+.m-sender { position: absolute; left: 25mm; top: 56.4mm; width: 85mm; font-size: 7.5pt; color: var(--m-mute); border-bottom: .15mm solid var(--m-light); padding-bottom: .4mm; white-space: nowrap; overflow: hidden; }
+.m-addr { position: absolute; left: 25mm; top: 62.6mm; width: 85mm; font-size: 10pt; line-height: 4.6mm; }
+.m-info { position: absolute; left: 125mm; width: 65mm; top: 47mm; }
+.m-info .row { display: flex; justify-content: space-between; align-items: baseline; height: 4.8mm; font-size: 9pt; }
+.m-info .row span:first-child { color: var(--m-mute); }
+.m-info .row.nr span:last-child { font-weight: 700; }
+.m-body { padding: 97mm 20mm 38mm 25mm; }
+.m-title { font-size: 14pt; font-weight: 700; margin: 0 0 1.5mm; }
+.m-ref { font-size: 9pt; margin-bottom: 5mm; }
+.m-p { margin: 0 0 3mm; font-size: 10pt; line-height: 4.6mm; }
+.sheet .m-tab { width: 100%; border-collapse: collapse; margin-top: 4.5mm; font-size: 9pt; }
+.sheet .m-tab th { font-size: 9pt; font-weight: 700; text-align: left; padding: 0 0 1.4mm; border-bottom: .3mm solid var(--m-ink); background: none; }
+.sheet .m-tab td { padding: 2mm 0 1.7mm; border-bottom: .1mm solid var(--m-light); vertical-align: top; }
+.sheet .m-tab .r, .sheet .m-tab th.r { text-align: right; }
+.m-tab td .z { font-size: 7.5pt; color: var(--m-mute); margin-top: .4mm; }
+.m-tab td.mpos { width: 9mm; }
+.m-tot { margin: 3mm 0 0 auto; width: 78mm; font-size: 9pt; }
+.m-tot .row { display: flex; justify-content: space-between; height: 5mm; align-items: baseline; }
+.m-tot .row span:first-child { color: var(--m-mute); }
+.m-tot .row.grand { border-top: .3mm solid var(--m-ink); margin-top: 1mm; padding-top: 1.6mm; height: 7mm; font-size: 10pt; font-weight: 700; }
+.m-tot .row.grand span:first-child { color: var(--m-ink); }
+.m-fn { font-size: 7.5pt; color: var(--m-mute); margin: 4mm 0 0; line-height: 3.4mm; }
+.m-pay { display: flex; justify-content: space-between; gap: 6mm; border-top: .15mm solid var(--m-light); margin-top: 7mm; padding-top: 3mm; }
+.m-pay .h { font-size: 9pt; font-weight: 700; margin-bottom: 1.2mm; }
+.m-pay .cols { display: grid; grid-template-columns: 72mm 1fr; }
+.m-pay dl { display: grid; grid-template-columns: 30mm 1fr; margin: 0; align-content: start; font-size: 9pt; line-height: 4.8mm; }
+.m-pay .cols dl + dl { grid-template-columns: 20mm 1fr; }
+.m-pay dt { color: var(--m-mute); }
+.m-pay dd { margin: 0; }
+.m-pay .thanks { font-size: 9pt; margin-top: 1.2mm; }
+.m-qr { width: 22mm; flex: none; text-align: center; font-size: 7.5pt; color: var(--m-mute); white-space: nowrap; }
+.m-qr svg { width: 22mm; height: 22mm; display: block; }
+.m-greet { margin-top: 3mm; font-size: 10pt; line-height: 4.6mm; }
+.m-foot { position: absolute; left: 25mm; right: 20mm; bottom: 8mm; border-top: .15mm solid var(--m-light); padding-top: 2.4mm; display: grid; grid-template-columns: 42mm 38mm 47mm 1fr; font-size: 7.5pt; line-height: 3.4mm; color: var(--m-mute); }
+.m-foot .h { font-weight: 700; color: var(--m-ink); }
+.m-page { position: absolute; right: 20mm; bottom: 3.5mm; font-size: 7.5pt; color: var(--m-mute); }
+.layout-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.layout-seg button { border: 0; background: var(--surface); padding: 5px 10px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.layout-seg button + button { border-left: 1px solid var(--line); }
+.layout-seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+/* Aktionsleiste */
+.actionbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(0,0,0,.06);
+  padding-bottom: env(safe-area-inset-bottom, 0px); }
+.actionbar-inner { max-width: 1560px; margin: 0 auto; display: flex; align-items: center; gap: 10px 20px; flex-wrap: wrap; padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.totals { display: flex; gap: 6px 20px; flex-wrap: wrap; align-items: baseline; font-size: 13px; color: var(--muted); }
+.totals b { color: var(--ink); font-size: 14px; }
+.totals .grand b { font-family: var(--f-display); font-size: 24px; font-weight: 700; color: var(--ink); }
+.status { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.status.saved { background: var(--ok-soft); color: var(--ok); }
+.status.dirty { background: var(--warn-soft); color: var(--warn); }
+.actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 9px 16px; border-radius: 7px; font-weight: 700; font-size: 14px; cursor: pointer; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+.btn.link { border: 0; background: transparent; color: var(--accent); padding: 4px 6px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Tabellen (Archiv, Kunden, Leistungen) */
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.page-head h1 { margin: 0; font-family: var(--f-display); font-size: 30px; font-weight: 700; letter-spacing: .01em; text-wrap: balance; }
+.page-head p { margin: 2px 0 0; color: var(--muted); font-size: 14px; max-width: 70ch; }
+.kpis { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 14px; min-width: 150px; }
+.kpi span { display: block; font-size: 12px; color: var(--muted); font-weight: 600; }
+.kpi b { font-family: var(--f-display); font-size: 24px; font-weight: 700; }
+.table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow-x: auto; }
+table.list { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.list th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); white-space: nowrap; }
+table.list td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.list tr:last-child td { border-bottom: 0; }
+table.list .r { text-align: right; }
+table.list td input, table.list td select { padding: 6px 8px; }
+.pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; border: 0; cursor: pointer; }
+.pill.paid { background: var(--ok-soft); color: var(--ok); }
+.pill.open { background: var(--warn-soft); color: var(--warn); }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toolbar input { width: 260px; max-width: 100%; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.note { font-size: 13px; color: var(--muted); }
+.callout { background: var(--accent-soft); color: var(--ink); border-radius: var(--r); padding: 10px 14px; font-size: 14px; }
+
+@media (max-width: 620px) {
+  .actionbar-inner { gap: 8px; padding-block: 8px; }
+  .actionbar .status, .totals span:not(.grand) { display: none; }
+  .totals .grand b { font-size: 21px; }
+  .actions { gap: 6px; }
+  .actions .btn { padding: 8px 10px; font-size: 13px; }
+  .long { display: none; }
+}
+@media (min-width: 621px) { .short { display: none; } }
+.callout.setup { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+#importConfirm { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+label.btn { display: inline-block; }
+#toast { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; z-index: 40; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) { #toast { transition: opacity .2s; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-name" id="brandName">Rechnungen</span>
+    </div>
+    <nav class="tabs" aria-label="Bereiche">
+      <button class="tab" data-view="rechnung">Rechnung</button>
+      <button class="tab" data-view="archiv">Archiv</button>
+      <button class="tab" data-view="kunden">Kunden</button>
+      <button class="tab" data-view="leistungen">Leistungen</button>
+      <button class="tab" data-view="firma">Firma</button>
+    </nav>
+    <span class="store-pill" id="storePill">Verbinde …</span>
+  </div>
+</header>
+
+<main>
+  <!-- ======================= RECHNUNG ======================= -->
+  <section id="view-rechnung" data-section="rechnung">
+    <div class="callout setup" id="setupBanner" hidden>
+      <div><b>Willkommen!</b> Trage zuerst deine Firmendaten ein – oder spiele eine vorhandene Sicherung ein. Alle Daten bleiben nur auf diesem Rechner.</div>
+      <div class="toolbar"><button class="btn primary small" type="button" data-goto="firma">Firmendaten eintragen</button><label class="btn small" for="importFile">Sicherung einspielen …</label></div>
+    </div>
+    <div class="workbench">
+      <div class="form" id="form">
+        <div class="block">
+          <div class="block-head"><h2>Rechnung</h2><span class="note" id="nextHint"></span></div>
+          <div class="grid">
+            <div class="field span-2"><label for="f-nr">Rechnungs-Nr.</label><input type="text" id="f-nr" data-bind="nr" class="num" autocomplete="off"></div>
+            <div class="field span-2"><label for="f-datum">Rechnungsdatum</label><input type="date" id="f-datum" data-bind="datum"></div>
+            <div class="field span-2"><label for="f-ldatum">Leistungsdatum</label><input type="date" id="f-ldatum" data-bind="leistungsdatum"><span class="hint">leer = Rechnungsdatum</span></div>
+            <div class="field span-4"><span class="lbl">Zahlungsart</span>
+              <div class="seg" id="seg-zahlung" role="group" aria-label="Zahlungsart">
+                <button type="button" data-zahlung="Überweisung">Überweisung</button><button type="button" data-zahlung="Barzahlung">Bar</button><button type="button" data-zahlung="Kartenzahlung">Karte</button>
+              </div></div>
+            <div class="field span-2" id="wrap-ziel"><label for="f-ziel">Zahlungsziel (Tage)</label><input type="number" id="f-ziel" data-bind="ziel" min="0" max="365" step="1" class="num"></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Kunde</h2><button class="btn link small" id="saveCustomer" type="button">Als Stammkunde speichern</button></div>
+          <div class="grid">
+            <div class="field span-6"><label for="f-kunde">Stammkunde</label>
+              <select id="f-kunde"><option value="">— Laufkunde / Anschrift manuell —</option></select></div>
+            <div class="field span-6"><label for="f-name">Name / Firma</label><input type="text" id="f-name" data-bind="adr.name" autocomplete="off"></div>
+            <div class="field span-6"><label for="f-zusatz">Zusatz (Abteilung, z. Hd.)</label><input type="text" id="f-zusatz" data-bind="adr.zusatz" autocomplete="off"></div>
+            <div class="field span-6"><label for="f-strasse">Straße + Nr.</label><input type="text" id="f-strasse" data-bind="adr.strasse" autocomplete="off"></div>
+            <div class="field span-2 keep"><label for="f-plz">PLZ</label><input type="text" id="f-plz" data-bind="adr.plz" inputmode="numeric" autocomplete="off"></div>
+            <div class="field span-2 keep"><label for="f-ort">Ort</label><input type="text" id="f-ort" data-bind="adr.ort" autocomplete="off"></div>
+            <div class="field span-2"><label for="f-land">Land</label><input type="text" id="f-land" data-bind="adr.land" placeholder="nur Ausland" autocomplete="off"></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Fahrzeug &amp; Vorgang</h2><span class="note">optional · erscheint als Bezugszeile</span></div>
+          <div class="grid">
+            <div class="field span-6"><label for="f-kz">Amtliches Kennzeichen</label>
+              <div class="plate"><span class="eu" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20"><g fill="#f4c400" class="stars"></g></svg>D</span><input type="text" id="f-kz" data-bind="fz.kennzeichen" placeholder="BN-AB 123" autocomplete="off" spellcheck="false"></div></div>
+            <div class="field span-6"><label for="f-vorgang">Vorgang</label><input type="text" id="f-vorgang" data-bind="fz.vorgang" list="vorgaenge" autocomplete="off">
+              <datalist id="vorgaenge"></datalist></div>
+            <div class="field span-3"><label for="f-fin">FIN</label><input type="text" id="f-fin" data-bind="fz.fin" class="num" autocomplete="off" spellcheck="false" maxlength="17"></div>
+            <div class="field span-3"><label for="f-halter">Halter (falls abweichend)</label><input type="text" id="f-halter" data-bind="fz.halter" autocomplete="off"></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Positionen</h2><span class="note">Preise brutto inkl. USt</span></div>
+          <div class="chips" id="chips"></div>
+          <div class="pos-head" aria-hidden="true"><span>#</span><span>Leistung</span><span class="r">Menge</span><span class="r">Einzelpreis</span><span>USt</span><span class="r">Gesamt</span><span></span></div>
+          <div class="positions" id="positions"></div>
+          <datalist id="leistungen-dl"></datalist>
+          <div><button class="btn small" id="addPos" type="button">+ Leere Position</button></div>
+        </div>
+
+        <div class="block">
+          <div class="block-head"><h2>Texte</h2><span class="note">optional</span></div>
+          <div class="grid">
+            <div class="field span-3"><label for="f-anrede">Anrede</label><input type="text" id="f-anrede" data-bind="anrede" autocomplete="off"></div>
+            <div class="field span-3"><label for="f-ap">Ansprechpartner</label><input type="text" id="f-ap" data-bind="ansprechpartner" autocomplete="off"></div>
+            <div class="field span-6"><label for="f-hinweis">Hinweis auf der Rechnung</label><textarea id="f-hinweis" data-bind="hinweis" rows="2" placeholder="z. B. Zulassung online über i-Kfz durchgeführt."></textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-col">
+        <div class="preview-bar"><span>Vorschau · A4</span><div class="layout-seg" id="layoutSeg" role="group" aria-label="Rechnungslayout"><button type="button" data-layout="modern">Neues Design</button><button type="button" data-layout="klassisch">Foto-Stil</button></div></div>
+        <div class="sheet-wrap" id="sheetWrap"><div class="sheet" id="sheet"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= ARCHIV ======================= -->
+  <section id="view-archiv" data-section="archiv" hidden>
+    <div class="page-head">
+      <div><h1>Rechnungsarchiv</h1><p>Jede gespeicherte Rechnung mit den Firmendaten von damals. Öffnen, erneut als PDF laden oder als bezahlt markieren.</p><p id="archivBackupHint" class="note"></p></div>
+      <div class="toolbar"><input type="text" id="archivSearch" placeholder="Suchen: Nr., Kunde, Kennzeichen" aria-label="Archiv durchsuchen"><button class="btn" id="csvBtn" type="button">CSV für Steuerbüro</button></div>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div class="table-wrap"><table class="list">
+      <thead><tr><th>Nr.</th><th>Datum</th><th>Kunde</th><th>Kennzeichen</th><th>Zahlung</th><th class="r">Brutto</th><th>Status</th><th></th></tr></thead>
+      <tbody id="archivBody"></tbody></table></div>
+  </section>
+
+  <!-- ======================= KUNDEN ======================= -->
+  <section id="view-kunden" data-section="kunden" hidden>
+    <div class="page-head"><div><h1>Kunden</h1><p>Stammkunden erscheinen in der Auswahl auf der Rechnung. Laufkunden brauchen keinen Eintrag.</p></div></div>
+    <div class="split">
+      <div class="table-wrap"><table class="list">
+        <thead><tr><th>Nr.</th><th>Name / Firma</th><th>Anschrift</th><th></th></tr></thead>
+        <tbody id="kundenBody"></tbody></table></div>
+      <form class="block" id="kundeForm">
+        <div class="block-head"><h2 id="kundeFormTitle">Neuer Kunde</h2><button class="btn link small" type="button" id="kundeNeu">Leeren</button></div>
+        <div class="grid">
+          <div class="field span-2"><label for="k-nr">Kunden-Nr.</label><input type="text" id="k-nr" class="num" required></div>
+          <div class="field span-4"><label for="k-name">Name / Firma</label><input type="text" id="k-name" required></div>
+          <div class="field span-6"><label for="k-zusatz">Zusatz</label><input type="text" id="k-zusatz"></div>
+          <div class="field span-6"><label for="k-strasse">Straße + Nr.</label><input type="text" id="k-strasse"></div>
+          <div class="field span-2 keep"><label for="k-plz">PLZ</label><input type="text" id="k-plz" inputmode="numeric"></div>
+          <div class="field span-2 keep"><label for="k-ort">Ort</label><input type="text" id="k-ort"></div>
+          <div class="field span-2"><label for="k-land">Land</label><input type="text" id="k-land" placeholder="nur Ausland"></div>
+        </div>
+        <div class="toolbar"><button class="btn primary" type="submit">Kunde speichern</button></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ======================= LEISTUNGEN ======================= -->
+  <section id="view-leistungen" data-section="leistungen" hidden>
+    <div class="page-head">
+      <div><h1>Leistungen &amp; Preise</h1><p>Bruttopreise (Endpreise). USt nur 0 % (verauslagte Gebühren) oder 19 %. Änderungen gelten für neue Positionen.</p></div>
+      <div class="toolbar"><button class="btn" id="leistAdd" type="button">+ Leistung</button><button class="btn primary" id="leistSave" type="button">Speichern</button></div>
+    </div>
+    <div class="table-wrap"><table class="list">
+      <thead><tr><th>Leistung</th><th>Zusatztext</th><th>Einheit</th><th class="r">Preis brutto</th><th>USt</th><th class="r">davon netto</th><th class="r">im Paket</th><th></th></tr></thead>
+      <tbody id="leistBody"></tbody></table></div>
+    <p class="note">„Im Paket“: Diese Leistungen fügt der Knopf „Zulassungspaket“ auf der Rechnung auf einmal ein (Schilder mit Menge 2).</p>
+  </section>
+
+  <!-- ======================= FIRMA ======================= -->
+  <section id="view-firma" data-section="firma" hidden>
+    <div class="page-head">
+      <div><h1>Firmendaten</h1><p>Briefkopf, Fußzeile, Bankverbindung und Standardtexte. Gespeicherte Rechnungen behalten die Daten, die beim Speichern galten.</p></div>
+      <div class="toolbar"><button class="btn primary" id="firmaSave" type="button">Speichern</button></div>
+    </div>
+    <div class="block" id="firmaForm" style="max-width: 900px"></div>
+    <div class="block" id="backupBlock" style="max-width: 900px; margin-top: 20px">
+      <div class="block-head"><h2>Datensicherung</h2><span class="note" id="backupInfo"></span></div>
+      <p class="note" style="margin:0">Firmendaten, Leistungen, Kunden und das Rechnungsarchiv liegen <b>nur in diesem Browser auf diesem Rechner</b>. Es gibt keinen Server und keine Übertragung ins Internet. Lade deshalb regelmäßig eine Sicherung herunter – damit lassen sich die Daten auch auf einen anderen Rechner übertragen.</p>
+      <div class="toolbar">
+        <button class="btn primary" id="backupBtn" type="button">Sicherung herunterladen</button>
+        <label class="btn" for="importFile">Sicherung einspielen …</label>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <button class="btn link" id="wipeBtn" type="button" style="color:var(--danger)">Alle Daten auf diesem Rechner löschen</button>
+      </div>
+      <div class="callout" id="importConfirm" hidden></div>
+    </div>
+  </section>
+</main>
+
+<div class="actionbar" id="actionbar">
+  <div class="actionbar-inner">
+    <span class="status" id="docStatus">Entwurf</span>
+    <div class="totals num" id="totals"></div>
+    <div class="actions">
+      <button class="btn" id="newBtn" type="button"><span class="long">Neue Rechnung</span><span class="short">Neu</span></button>
+      <button class="btn" id="saveBtn" type="button">Speichern</button>
+      <button class="btn primary" id="pdfBtn" type="button"><span class="long">PDF herunterladen</span><span class="short">PDF</span></button>
+    </div>
+  </div>
+</div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script>
+"use strict";
+/* ------------------------------------------------------------------ Grunddaten */
+const DEFAULT_FIRMA = {
+  name: "", untertitel: "", inhaber: "", strasse: "", plz: "", ort: "",
+  telefon: "", telefax: "", email: "", web: "",
+  steuernr: "", ustid: "", bank: "", iban: "", bic: "", kontoinhaber: "", ziel: 14, startNr: "",
+  anrede: "Sehr geehrte Damen und Herren,", intro1: "vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen!",
+  intro2: "Hiermit stelle ich Ihnen die folgenden Leistungen in Rechnung:", gruss: "Mit freundlichen Grüßen",
+  fussnote: "Verauslagte Gebühren der Zulassungsbehörde, gezahlt im Namen und für Rechnung des Kunden (durchlaufender Posten gem. § 10 Abs. 1 Satz 6 UStG) – nicht umsatzsteuerbar.",
+  girocode: true, layout: "modern"
+};
+const DEFAULT_LEISTUNGEN = [
+  { name: "Stadt Bonn Gebühren", zusatz: "Gebühren Auslage", einheit: "Stk", preis: 4020, ust: 0, paket: 1 },
+  { name: "KFZ-Schilder", zusatz: "", einheit: "Stk", preis: 1650, ust: 19, paket: 2 },
+  { name: "Umweltplakette", zusatz: "", einheit: "Stk", preis: 500, ust: 19, paket: 1 },
+  { name: "KFZ-Zulassungsservice", zusatz: "", einheit: "Stk", preis: 6900, ust: 19, paket: 1 },
+  { name: "Porto/Versand-Express", zusatz: "", einheit: "Stk", preis: 990, ust: 19, paket: 1 }
+];
+const VORGAENGE = ["Neuzulassung (online)", "Umschreibung / Halterwechsel (online)", "Wiederzulassung (online)", "Außerbetriebsetzung (online)",
+  "Adress-/Namensänderung (online)", "Neuzulassung", "Umschreibung / Halterwechsel", "Außerbetriebsetzung", "Kennzeichen-Neuprägung"];
+const FIRMA_FIELDS = [
+  ["name", "Firmenname (Briefkopf)", 3], ["untertitel", "Untertitel", 3], ["inhaber", "Inhaber", 2], ["strasse", "Straße + Nr.", 2], ["plz", "PLZ", 1], ["ort", "Ort", 1],
+  ["telefon", "Telefon", 2], ["telefax", "Telefax", 2], ["email", "E-Mail", 2], ["web", "Website", 3], ["steuernr", "Steuernummer", 3],
+  ["ustid", "USt-IdNr.", 2], ["bank", "Bank", 2], ["bic", "BIC", 2], ["iban", "IBAN", 3], ["kontoinhaber", "Kontoinhaber", 3],
+  ["ziel", "Zahlungsziel Standard (Tage)", 2, "number"], ["startNr", "Erste Rechnungs-Nr. (wenn Archiv leer)", 2], ["girocode", "GiroCode auf Rechnung", 2, "check"],
+  ["anrede", "Anrede", 6], ["intro1", "Einleitung Zeile 1", 6], ["intro2", "Einleitung Zeile 2", 6], ["gruss", "Grußformel", 3], ["fussnote", "Fußnote 0-%-Gebühren", 6, "area"]
+];
+
+/* ------------------------------------------------------------------ Helfer */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nf = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const eur = (c) => nf.format((c || 0) / 100) + " €";
+const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
+const fmtDate = (iso) => { if (!iso) return ""; const [y, m, d] = iso.split("-"); return `${d}.${m}.${y}`; };
+const addDays = (iso, n) => { const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + Number(n || 0)); return d.toISOString().slice(0, 10); };
+const parseEUR = (s) => { if (typeof s === "number") return Math.round(s * 100); s = String(s || "").replace(/[€\s]/g, ""); if (!s) return 0;
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", "."); const v = parseFloat(s); return isNaN(v) ? 0 : Math.round(v * 100); };
+const plainEUR = (c) => nf.format((c || 0) / 100);
+const fmtQty = (m) => Number.isInteger(m) ? String(m) : nf.format(m);
+const ibanFmt = (s) => String(s || "").replace(/\s+/g, "").replace(/(.{4})/g, "$1 ").trim();
+const docId = (nr) => { let s = String(nr || "").trim().replace(/[^A-Za-z0-9_\-.~:@+]/g, "-"); if (!s || s === "." || s === "..") s = "ohne-nr"; return s.slice(0, 150); };
+const uid = () => Math.random().toString(36).slice(2, 9);
+function ibanValid(iban) { const s = String(iban || "").replace(/\s+/g, "").toUpperCase(); if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(s)) return false;
+  const r = (s.slice(4) + s.slice(0, 4)).replace(/[A-Z]/g, (c) => c.charCodeAt(0) - 55); let m = 0; for (const ch of r) m = (m * 10 + Number(ch)) % 97; return m === 1; }
+
+/* EU-Sterne für die Kennzeichen-Symbole */
+(function stars() { let g = ""; for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g += `<circle cx="${(10 + 7 * Math.cos(a)).toFixed(2)}" cy="${(10 + 7 * Math.sin(a)).toFixed(2)}" r="1.15"/>`; }
+  $$(".stars").forEach((el) => (el.innerHTML = g)); })();
+
+/* ------------------------------------------------------------------ Rechnen */
+function calc(pos) {
+  let b0 = 0, b19 = 0;
+  const rows = pos.filter((p) => (p.name || "").trim() !== "").map((p) => {
+    const menge = Number(p.menge) > 0 ? Number(p.menge) : 1;
+    const gesamt = Math.round(menge * (p.preis || 0));
+    if (Number(p.ust) === 0) b0 += gesamt; else b19 += gesamt;
+    return { ...p, menge, gesamt };
+  });
+  const n19 = Math.round(b19 * 100 / 119);
+  return { rows, b0, b19, n19, u19: b19 - n19, netto: b0 + n19, brutto: b0 + b19 };
+}
+
+/* ------------------------------------------------------------------ Speicher */
+const Store = {
+  mode: "memory", idb: null, mem: new Map(),
+  async init() {
+    try {
+      if (window.indexedDB) {
+        this.idb = await new Promise((res, rej) => {
+          const r = indexedDB.open("rechnungsgenerator", 1);
+          r.onupgradeneeded = () => r.result.createObjectStore("kv");
+          r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("blocked"));
+        });
+        this.mode = "idb"; return;
+      }
+    } catch (e) { /* Fallback: nur im Arbeitsspeicher */ }
+    this.mode = "memory";
+  },
+  tx(mode, work) {
+    return new Promise((res, rej) => {
+      const t = this.idb.transaction("kv", mode); const st = t.objectStore("kv"); let out;
+      const r = work(st, (v) => (out = v)); if (r) r.onsuccess = () => (out = r.result);
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error("abgebrochen"));
+    });
+  },
+  async getDoc(p) { if (this.mode === "idb") { const v = await this.tx("readonly", (st) => st.get(p)); return v ? clone(v) : null; } const v = this.mem.get(p); return v ? clone(v) : null; },
+  async setDoc(p, d) { if (this.mode === "idb") return this.tx("readwrite", (st) => st.put(clone(d), p)); this.mem.set(p, clone(d)); },
+  async delDoc(p) { if (this.mode === "idb") return this.tx("readwrite", (st) => st.delete(p)); this.mem.delete(p); },
+  async list(coll) {
+    const lo = coll + "/";
+    if (this.mode === "idb") return this.tx("readonly", (st, set) => {
+      const out = []; set(out);
+      st.openCursor(IDBKeyRange.bound(lo, lo + "￿")).onsuccess = (e) => { const c = e.target.result; if (c) { out.push({ id: c.key.slice(lo.length), ...c.value }); c.continue(); } };
+    });
+    return [...this.mem.entries()].filter(([k]) => k.startsWith(lo)).map(([k, v]) => ({ id: k.slice(lo.length), ...clone(v) }));
+  },
+  async replaceAll(entries) {
+    if (this.mode === "idb") return this.tx("readwrite", (st) => { st.clear(); entries.forEach(([k, v]) => st.put(clone(v), k)); });
+    this.mem.clear(); entries.forEach(([k, v]) => this.mem.set(k, clone(v)));
+  }
+};
+let persistAsked = false;
+async function guarded(fn, okMsg) {
+  try {
+    await fn(); if (okMsg) toast(okMsg);
+    if (!persistAsked && navigator.storage && navigator.storage.persist) { persistAsked = true; navigator.storage.persist().catch(() => {}); }
+    return true;
+  } catch (e) {
+    const name = (e && (e.name || e.code)) || "";
+    if (/Quota/i.test(name)) toast("Browserspeicher voll: bitte Sicherung herunterladen und alte Rechnungen löschen.");
+    else toast("Speichern fehlgeschlagen: " + ((e && e.message) || "unbekannter Fehler"));
+    return false;
+  }
+}
+function offerFile(filename, data, mime) {
+  try {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: mime });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  } catch (e) { toast("Download nicht möglich: " + e.message); }
+}
+
+/* ------------------------------------------------------------------ Zustand */
+let firma = clone(DEFAULT_FIRMA);
+let leistungen = clone(DEFAULT_LEISTUNGEN);
+let kunden = [];
+let archiv = [];
+let inv = null;
+let editingId = null;
+let savedSnap = null;
+let confirmOverwrite = false;
+let loaded = false;
+
+function exampleInvoice() {
+  return {
+    sample: true, nr: firma.startNr, datum: todayISO(), leistungsdatum: "", zahlungsart: "Überweisung", ziel: "", kundeNr: "",
+    adr: { name: "Max Mustermann", zusatz: "", strasse: "Musterstraße 1", plz: "53111", ort: "Bonn", land: "" },
+    fz: { vorgang: "Neuzulassung (online)", kennzeichen: "BN-AB 123", fin: "", halter: "" },
+    pos: paketPositions(), anrede: "", ansprechpartner: "", hinweis: ""
+  };
+}
+function blankInvoice() {
+  return { nr: nextNr(todayISO()), datum: todayISO(), leistungsdatum: "", zahlungsart: "Überweisung", ziel: "", kundeNr: "",
+    adr: { name: "", zusatz: "", strasse: "", plz: "", ort: "", land: "" }, fz: { vorgang: "", kennzeichen: "", fin: "", halter: "" },
+    pos: [], anrede: "", ansprechpartner: "", hinweis: "" };
+}
+function posFrom(l, menge) { return { id: uid(), name: l.name, zusatz: l.zusatz || "", einheit: l.einheit || "Stk", menge: menge || 1, preis: l.preis, ust: l.ust }; }
+function paketPositions() { return leistungen.filter((l) => Number(l.paket) > 0).map((l) => posFrom(l, Number(l.paket))); }
+
+function nextNr(dateISO) {
+  const year = (dateISO || todayISO()).slice(0, 4);
+  let max = -1, width = 4;
+  for (const r of archiv) { const m = /^(\d+)\.(\d{4})$/.exec(String(r.nr || "").trim()); if (m && m[2] === year) { max = Math.max(max, parseInt(m[1], 10)); width = Math.max(width, m[1].length); } }
+  if (max >= 0) return String(max + 1).padStart(width, "0") + "." + year;
+  const s = /^(\d+)\.(\d{4})$/.exec(String(firma.startNr || "").trim());
+  if (s && s[2] === year) return s[1] + "." + year;
+  return "0001." + year;
+}
+
+/* ------------------------------------------------------------------ Ableitungen für Rechnung */
+function derive(i, f) {
+  const c = calc(i.pos);
+  const ziel = i.ziel === "" || i.ziel == null ? Number(f.ziel || 0) : Number(i.ziel);
+  const ueb = i.zahlungsart === "Überweisung";
+  const faellig = ueb ? (ziel > 0 ? fmtDate(addDays(i.datum, ziel)) : "sofort") : "";
+  const ap = (i.ansprechpartner || "").trim() || f.inhaber;
+  const info = [["Rechnungsdatum", fmtDate(i.datum)], ["Leistungsdatum", fmtDate(i.leistungsdatum || i.datum)]];
+  if (faellig) info.push(["Fällig am", faellig]);
+  if ((i.kundeNr || "").trim()) info.push(["Ihre Kundennummer", i.kundeNr]);
+  if (ap) info.push(["Ihr Ansprechpartner", ap]);
+  const a = i.adr || {};
+  const plzOrt = [a.plz, a.ort].filter(Boolean).join(" ");
+  const land = (a.land || "").trim() && !/^deutschland$/i.test(a.land.trim()) ? a.land.trim() : "";
+  const addr = [a.name, a.zusatz, a.strasse, plzOrt, land].map((s) => (s || "").trim()).filter(Boolean);
+  const fz = i.fz || {};
+  const ref = [fz.vorgang && "Vorgang: " + fz.vorgang, fz.kennzeichen && "Kennzeichen: " + fz.kennzeichen.toUpperCase(), fz.fin && "FIN: " + fz.fin.toUpperCase(), fz.halter && "Halter: " + fz.halter].filter(Boolean).join(" · ");
+  const amt = eur(c.brutto);
+  let pay;
+  if (i.zahlungsart === "Barzahlung") pay = `Der Rechnungsbetrag von ${amt} wurde am ${fmtDate(i.datum)} in bar bezahlt. Vielen Dank!`;
+  else if (i.zahlungsart === "Kartenzahlung") pay = `Der Rechnungsbetrag von ${amt} wurde am ${fmtDate(i.datum)} per Kartenzahlung beglichen. Vielen Dank!`;
+  else pay = `Bitte überweisen Sie den Rechnungsbetrag von ${amt}${ziel > 0 ? " bis zum " + faellig : ""} unter Angabe der Rechnungsnummer ${i.nr} auf das unten angegebene Konto.${ziel > 0 ? "" : " Der Rechnungsbetrag ist sofort fällig."}`;
+  const contact = [f.telefon && "Tel. " + f.telefon, f.telefax && "Fax " + f.telefax, f.email, f.web].filter(Boolean);
+  const tax = [f.steuernr && "Steuer-Nr. " + f.steuernr, f.ustid && "USt-IdNr. " + f.ustid].filter(Boolean);
+  const foot = [
+    [f.name, f.inhaber && "Inh. " + f.inhaber, f.strasse, [f.plz, f.ort].filter(Boolean).join(" ")].filter(Boolean),
+    contact, tax,
+    [f.bank, f.iban && "IBAN " + ibanFmt(f.iban), f.bic && "BIC " + f.bic, f.kontoinhaber && "Kontoinhaber: " + f.kontoinhaber].filter(Boolean)
+  ];
+  const giro = ueb && f.girocode !== false && c.brutto > 0 && ibanValid(f.iban) ? epc(f, c.brutto, i.nr) : "";
+  return { c, info, addr, ref, pay, foot, giro, ap, faellig, anrede: (i.anrede || "").trim() || f.anrede,
+    sender: [f.name, f.strasse, [f.plz, f.ort].filter(Boolean).join(" ")].filter(Boolean).join(" · ") };
+}
+function epc(f, cents, nr) {
+  return ["BCD", "002", "1", "SCT", (f.bic || "").replace(/\s+/g, ""), (f.kontoinhaber || f.name || "").slice(0, 70), (f.iban || "").replace(/\s+/g, "").toUpperCase(),
+    "EUR" + (cents / 100).toFixed(2), "", "", ("Rechnung " + nr).slice(0, 140)].join("\n");
+}
+function qrMatrix(text) {
+  if (!window.qrcode || !text) return null;
+  try { if (qrcode.stringToBytesFuncs && qrcode.stringToBytesFuncs["UTF-8"]) qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+    const q = qrcode(0, "M"); q.addData(text, "Byte"); q.make(); const n = q.getModuleCount(); const m = [];
+    for (let r = 0; r < n; r++) { const row = []; for (let c = 0; c < n; c++) row.push(q.isDark(r, c)); m.push(row); } return m; }
+  catch (e) { return null; }
+}
+function qrSVG(text) {
+  const m = qrMatrix(text); if (!m) return ""; const n = m.length, q = 4, s = n + 2 * q; let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (m[r][c]) d += `M${c + q} ${r + q}h1v1h-1z`;
+  return `<svg viewBox="0 0 ${s} ${s}" shape-rendering="crispEdges" aria-label="GiroCode"><rect width="${s}" height="${s}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
+/* ------------------------------------------------------------------ Layout „Neu“ (eigenes Design, DIN 5008 Form B, schlicht) */
+const layoutOf = (f) => (f && f.layout) || "modern";
+function payRows(i, f, d) {
+  if (i.zahlungsart === "Überweisung") return [
+    [["Betrag", eur(d.c.brutto)], ["Zahlbar bis", d.faellig === "sofort" ? "sofort, ohne Abzug" : d.faellig], ["Verwendungszweck", "Rechnung " + i.nr]],
+    [["Empfänger", f.kontoinhaber || f.name], ["IBAN", ibanFmt(f.iban)], ["BIC", f.bic]].filter((r) => r[1])];
+  return [[["Betrag", eur(d.c.brutto)], ["Bezahlt am", fmtDate(i.datum)]], [["Zahlungsart", i.zahlungsart === "Barzahlung" ? "Barzahlung" : "Kartenzahlung"]]];
+}
+function infoRowsModern(i, d) { return [["Rechnungs-Nr.", i.nr, true]].concat(d.info.map(([l, v]) => [l.replace(/^Ihre? /, ""), v, false])); }
+function contactLines(f) {
+  return [[f.strasse, [f.plz, f.ort].filter(Boolean).join(" ")].filter(Boolean).join(" · "), f.telefon && "Tel. " + f.telefon, f.telefax && "Fax " + f.telefax, f.email, f.web].filter(Boolean);
+}
+function footModern(f) {
+  return [
+    ["Anschrift", [f.name, f.inhaber && "Inh. " + f.inhaber, f.strasse, [f.plz, f.ort].filter(Boolean).join(" ")].filter(Boolean)],
+    ["Kontakt", [f.telefon && "Tel. " + f.telefon, f.telefax && "Fax " + f.telefax, f.email, f.web].filter(Boolean)],
+    ["Bankverbindung", [f.bank, f.iban && "IBAN " + ibanFmt(f.iban), f.bic && "BIC " + f.bic].filter(Boolean)],
+    ["Steuer", [f.steuernr && "Steuer-Nr. " + f.steuernr, f.ustid && "USt-IdNr. " + f.ustid].filter(Boolean)]
+  ].filter((b) => b[1].length);
+}
+function refModern(i) {
+  const fz = i.fz || {};
+  return [fz.kennzeichen && "Kennzeichen: " + fz.kennzeichen.trim().toUpperCase(), fz.vorgang && "Vorgang: " + fz.vorgang,
+    fz.fin && "FIN: " + fz.fin.toUpperCase(), fz.halter && "Halter: " + fz.halter].filter(Boolean).join(" · ");
+}
+/* Summenblock: [Bezeichnung, Bemessungsgrundlage-Text, Betrag, Fußnote?] */
+function totRows(c) {
+  const rows = [["Gesamtbetrag netto", "", c.netto, false]];
+  if (c.b19 > 0 || c.b0 === 0) rows.push([`Umsatzsteuer 19 % auf ${eur(c.n19)}`, "", c.u19, false]);
+  if (c.b0 > 0) rows.push([`Umsatzsteuer 0 % auf ${eur(c.b0)}`, "", 0, true]);
+  return rows;
+}
+
+function sheetHTMLModern(i, f) {
+  const d = derive(i, f);
+  const ref = refModern(i);
+  const rows = d.c.rows.map((p, k) => `<tr><td class="mpos">${k + 1}.</td><td>${esc(p.name)}${Number(p.ust) === 0 ? "<sup>1</sup>" : ""}${p.zusatz ? `<div class="z">${esc(p.zusatz)}</div>` : ""}</td>
+    <td class="r">${esc(fmtQty(p.menge))} ${esc(p.einheit || "Stk")}</td><td class="r">${eur(p.preis)}</td><td class="r">${Number(p.ust)} %</td><td class="r">${eur(p.gesamt)}</td></tr>`).join("");
+  return `${i.sample ? '<div class="s-sample" style="left:25mm;top:6mm">Beispiel – Musterdaten</div>' : ""}
+  <i class="m-fold" style="top:105mm"></i><i class="m-fold hole" style="top:148.5mm"></i><i class="m-fold" style="top:210mm"></i>
+  <div class="m-head"><div><div class="m-name">${esc(f.name)}</div>${f.untertitel ? `<div class="m-tag">${esc(f.untertitel)}</div>` : ""}</div>
+    <div class="m-contact">${contactLines(f).map(esc).join("<br>")}</div></div>
+  <div class="m-sender">${esc(d.sender)}</div>
+  <div class="m-addr">${d.addr.map(esc).join("<br>") || '<span style="color:#aaa">Anschrift fehlt</span>'}</div>
+  <div class="m-info">${infoRowsModern(i, d).map(([l, v, b]) => `<div class="row${b ? " nr" : ""}"><span>${esc(l)}</span><span>${esc(v)}</span></div>`).join("")}</div>
+  <div class="m-body">
+    <div class="m-title">Rechnung Nr. ${esc(i.nr)}</div>
+    ${ref ? `<div class="m-ref">${esc(ref)}</div>` : '<div style="height:3mm"></div>'}
+    <p class="m-p">${esc(d.anrede)}</p>
+    <p class="m-p">${esc(f.intro1)}<br>${esc(f.intro2)}</p>
+    <table class="m-tab"><thead><tr><th>Pos.</th><th>Leistung</th><th class="r">Menge</th><th class="r">Einzelpreis</th><th class="r">USt</th><th class="r">Betrag</th></tr></thead>
+      <tbody>${rows || '<tr><td></td><td style="color:#999">Noch keine Positionen</td><td colspan="4"></td></tr>'}</tbody></table>
+    <div class="m-tot">${totRows(d.c).map(([l, , v, fn]) => `<div class="row"><span>${esc(l)}${fn ? "<sup>1</sup>" : ""}</span><span>${eur(v)}</span></div>`).join("")}
+      <div class="row grand"><span>Rechnungsbetrag</span><span>${eur(d.c.brutto)}</span></div></div>
+    ${d.c.b0 > 0 ? `<p class="m-fn"><sup>1</sup> ${esc(f.fussnote)}</p>` : ""}
+    ${(i.hinweis || "").trim() ? `<p class="m-p" style="margin-top:5mm">${esc(i.hinweis).replace(/\n/g, "<br>")}</p>` : ""}
+    <div class="m-pay"><div><div class="h">${i.zahlungsart === "Überweisung" ? "Zahlungsinformationen" : "Zahlung erhalten"}</div>
+      <div class="cols">${payRows(i, f, d).map((col) => `<dl>${col.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`).join("")}</div>
+      ${i.zahlungsart !== "Überweisung" ? '<div class="thanks">Vielen Dank – der Betrag ist vollständig beglichen.</div>' : ""}</div>
+      ${d.giro ? `<div class="m-qr">${qrSVG(d.giro)}GiroCode</div>` : ""}</div>
+    <div class="m-greet">${esc(f.gruss)}<br>${esc(d.ap)}</div>
+  </div>
+  <div class="m-foot">${footModern(f).map(([h, ls]) => `<div><div class="h">${esc(h)}</div>${ls.map(esc).join("<br>")}</div>`).join("")}</div>
+  <div class="m-page">Seite 1 von 1</div>`;
+}
+
+function buildPDFModern(i, f) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const d = derive(i, f);
+  const L = 25, R = 190, W = R - L, TL = 112;
+  const INK = [29, 29, 31], MUTE = [107, 107, 107], LIGHT = [207, 207, 207];
+  const tc = (c) => doc.setTextColor(c[0], c[1], c[2]);
+  const font = (size, style = "normal") => { doc.setFont("helvetica", style); doc.setFontSize(size); };
+  const hair = (x1, y1, x2, y2, c = LIGHT, w = 0.15) => { doc.setDrawColor(c[0], c[1], c[2]); doc.setLineWidth(w); doc.line(x1, y1, x2, y2); };
+  const sup1 = (text, x, y, size, style) => { font(size, style); const w = doc.getTextWidth(text); font(size * 0.62, style); doc.text("1", x + w + 0.4, y - size * 0.13); font(size, style); };
+  doc.setProperties({ title: "Rechnung " + i.nr, author: f.name, subject: "Rechnung", creator: "Rechnungen " + f.name });
+
+  function folds() { hair(4, 105, 8, 105, [180, 180, 180], 0.2); hair(4, 148.5, 9, 148.5, [180, 180, 180], 0.2); hair(4, 210, 8, 210, [180, 180, 180], 0.2); }
+  function footer() {
+    hair(L, 271, R, 271);
+    const xs = [L, L + 42, L + 80, L + 127];
+    footModern(f).forEach(([h, ls], k) => { font(7.5, "bold"); tc(INK); doc.text(h, xs[k], 275); font(7.5); tc(MUTE); ls.forEach((t, j) => doc.text(t, xs[k], 278.4 + j * 3.4)); });
+  }
+  function tableHead(y) {
+    font(9, "bold"); tc(INK);
+    doc.text("Pos.", L, y); doc.text("Leistung", L + 9, y);
+    doc.text("Menge", 124, y, { align: "right" }); doc.text("Einzelpreis", 150, y, { align: "right" });
+    doc.text("USt", 165, y, { align: "right" }); doc.text("Betrag", R, y, { align: "right" });
+    hair(L, y + 1.8, R, y + 1.8, INK, 0.3);
+    return y + 1.8;
+  }
+  function newPage() { footer(); doc.addPage(); folds(); font(7.5); tc(MUTE); doc.text(`${f.name} · Rechnung Nr. ${i.nr} · Fortsetzung`, L, 18); return 28; }
+
+  // Kopf
+  folds();
+  font(14, "bold"); tc(INK); doc.text(f.name || "", L, 19.5);
+  if (f.untertitel) { font(7.5); tc(MUTE); doc.text(f.untertitel, L, 24); }
+  font(7.5); tc(MUTE); contactLines(f).forEach((t, k) => doc.text(t, R, 17.4 + k * 3.4, { align: "right" }));
+  hair(L, 29, R, 29);
+
+  // Anschriftfeld (Form B) und Informationsblock
+  font(7.5); tc(MUTE); doc.text(doc.splitTextToSize(d.sender, 85)[0] || "", L, 59); hair(L, 60.2, L + 85, 60.2);
+  font(10); tc(INK); d.addr.forEach((t, k) => doc.text(doc.splitTextToSize(t, 85)[0], L, 66.2 + k * 4.6));
+  infoRowsModern(i, d).forEach(([l, v, b], k) => {
+    const yy = 50.5 + k * 4.8;
+    font(9); tc(MUTE); doc.text(l, 125, yy);
+    font(9, b ? "bold" : "normal"); tc(INK); doc.text(String(v), R, yy, { align: "right" });
+  });
+
+  // Betreff
+  let y = 103;
+  font(14, "bold"); tc(INK); doc.text("Rechnung Nr. " + i.nr, L, y);
+  const ref = refModern(i);
+  if (ref) { font(9); tc(INK); const ls = doc.splitTextToSize(ref, W); y += 5.5; doc.text(ls, L, y); y += (ls.length - 1) * 4; }
+  y += 8.5; font(10); tc(INK); doc.text(d.anrede, L, y);
+  y += 6.5; doc.text(f.intro1 || "", L, y); y += 4.6; doc.text(f.intro2 || "", L, y);
+  y = tableHead(y + 8.5);
+
+  // Positionen
+  d.c.rows.forEach((p, k) => {
+    font(9); const nameLines = doc.splitTextToSize(p.name, 74);
+    font(7.5); const zLines = p.zusatz ? doc.splitTextToSize(p.zusatz, 74) : [];
+    const h = 5.8 + (nameLines.length - 1) * 4 + zLines.length * 3.4 + 0.6;
+    if (y + h > 238) y = tableHead(newPage());
+    const by = y + 4.5;
+    font(9); tc(INK); doc.text(`${k + 1}.`, L, by);
+    doc.text(nameLines, L + 9, by);
+    if (Number(p.ust) === 0) sup1(nameLines[nameLines.length - 1], L + 9, by + (nameLines.length - 1) * 4, 9, "normal");
+    font(9); tc(INK);
+    doc.text(`${fmtQty(p.menge)} ${p.einheit || "Stk"}`, 124, by, { align: "right" });
+    doc.text(eur(p.preis), 150, by, { align: "right" });
+    doc.text(`${Number(p.ust)} %`, 165, by, { align: "right" });
+    doc.text(eur(p.gesamt), R, by, { align: "right" });
+    if (zLines.length) { font(7.5); tc(MUTE); doc.text(zLines, L + 9, by + (nameLines.length - 1) * 4 + 3.6); }
+    y += h; hair(L, y, R, y);
+  });
+
+  // Summen
+  const tr = totRows(d.c);
+  if (y + 6 + tr.length * 5 + 9 > 258) y = newPage();
+  y += 2;
+  tr.forEach(([l, , v, fn]) => { y += 5; font(9); tc(MUTE); doc.text(l, TL, y); if (fn) sup1(l, TL, y, 9, "normal"); tc(INK); doc.text(eur(v), R, y, { align: "right" }); });
+  y += 2.6; hair(TL, y, R, y, INK, 0.3);
+  y += 5; font(10, "bold"); tc(INK); doc.text("Rechnungsbetrag", TL, y); doc.text(eur(d.c.brutto), R, y, { align: "right" });
+
+  // Fußnote, Hinweis
+  if (d.c.b0 > 0) { font(7.5); tc(MUTE); const ls = doc.splitTextToSize(f.fussnote || "", W - 2.5); y += 7; font(4.8); doc.text("1", L, y - 1); font(7.5); doc.text(ls, L + 2.5, y); y += (ls.length - 1) * 3.4; }
+  if ((i.hinweis || "").trim()) { font(10); tc(INK); const ls = doc.splitTextToSize(i.hinweis.trim(), W); if (y + ls.length * 4.6 + 6 > 262) y = newPage(); y += 6.5; doc.text(ls, L, y); y += (ls.length - 1) * 4.6; }
+
+  // Zahlung
+  const cols = payRows(i, f, d);
+  const qr = d.giro ? qrMatrix(d.giro) : null;
+  const nRows = Math.max(...cols.map((c) => c.length));
+  const payH = 10.2 + (nRows - 1) * 4.8 + (i.zahlungsart !== "Überweisung" ? 5.5 : 0) + 8.5 + 4.6 + 1.5;
+  if (y + 7 + Math.max(payH, qr ? 28 : 0) > 269) y = newPage();
+  y += 7; hair(L, y, R, y);
+  font(9, "bold"); tc(INK); doc.text(i.zahlungsart === "Überweisung" ? "Zahlungsinformationen" : "Zahlung erhalten", L, y + 5);
+  const CX = [[L, L + 30], [L + 72, L + 92]];
+  cols.forEach((col, ci) => col.forEach(([l, v], k) => { const yy = y + 10.2 + k * 4.8; font(9); tc(MUTE); doc.text(l, CX[ci][0], yy); tc(INK); doc.text(String(v), CX[ci][1], yy); }));
+  let py = y + 10.2 + (nRows - 1) * 4.8;
+  if (i.zahlungsart !== "Überweisung") { font(9); tc(INK); doc.text("Vielen Dank – der Betrag ist vollständig beglichen.", L, py + 5.5); py += 5.5; }
+  if (qr) {
+    const n = qr.length, size = 22, cell = size / (n + 2), x0 = R - size, y0 = y + 2;
+    doc.setFillColor(0, 0, 0);
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr[r][c]) doc.rect(x0 + (c + 1) * cell, y0 + (r + 1) * cell, cell + 0.01, cell + 0.01, "F");
+    font(7.5); tc(MUTE); doc.text("GiroCode", x0 + size / 2, y0 + size + 2.6, { align: "center" });
+  }
+  y = py + 8.5;
+  font(10); tc(INK); doc.text(f.gruss || "", L, y); doc.text(d.ap || "", L, y + 4.6);
+
+  footer();
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) { doc.setPage(p); font(7.5); tc(MUTE); doc.text(`Seite ${p} von ${n}`, R, 293, { align: "right" }); }
+  return doc;
+}
+
+function sheetHTML(i, f) { return layoutOf(f) === "klassisch" ? sheetHTMLKlassisch(i, f) : sheetHTMLModern(i, f); }
+function buildPDF(i, f) { return layoutOf(f) === "klassisch" ? buildPDFKlassisch(i, f) : buildPDFModern(i, f); }
+function renderLayoutSeg() { $$("#layoutSeg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.layout === layoutOf(firma)))); }
+
+/* ------------------------------------------------------------------ Vorschau */
+function sheetHTMLKlassisch(i, f) {
+  const d = derive(i, f);
+  const rows = d.c.rows.map((p, k) => `<tr><td>${k + 1}.</td><td><div class="pn">${esc(p.name)}${Number(p.ust) === 0 ? " ¹" : ""}</div>${p.zusatz ? `<div class="pz">${esc(p.zusatz)}</div>` : ""}</td>
+    <td class="r">${esc(fmtQty(p.menge))} ${esc(p.einheit || "Stk")}</td><td class="r">${Number(p.ust)} %</td><td class="r">${eur(p.preis)}</td><td class="r">${eur(p.gesamt)}</td></tr>`).join("");
+  return `${i.sample ? '<div class="s-sample">Beispiel – Musterdaten</div>' : ""}
+  <div class="s-name">${esc(f.name)}</div><div class="s-tag">${esc(f.untertitel)}</div>
+  <div class="s-sender">${esc(d.sender)}</div>
+  <div class="s-addr">${d.addr.map(esc).join("<br>") || '<span style="color:#aaa">Anschrift fehlt</span>'}</div>
+  <div class="s-info"><div class="nr"><span>Rechnungs-Nr.</span><b>${esc(i.nr)}</b></div>${d.info.map(([l, v]) => `<div class="row"><span>${esc(l)}</span><span>${esc(v)}</span></div>`).join("")}</div>
+  <div class="s-body">
+    <h1>Rechnung Nr. ${esc(i.nr)}</h1>
+    ${d.ref ? `<div class="s-ref">${esc(d.ref)}</div>` : '<div style="height:4mm"></div>'}
+    <p class="s-p">${esc(d.anrede)}</p>
+    <p class="s-p">${esc(f.intro1)}<br>${esc(f.intro2)}</p>
+    <div class="s-note">Alle Beträge in EUR inkl. gesetzlicher USt.</div>
+    <table>
+      <thead><tr><th style="width:9mm">Pos.</th><th>Beschreibung</th><th class="r" style="width:20mm">Menge</th><th class="r" style="width:13mm">USt</th><th class="r" style="width:24mm">Einzelpreis</th><th class="r" style="width:26mm">Gesamtpreis</th></tr></thead>
+      <tbody>${rows || '<tr><td></td><td style="color:#999">Noch keine Positionen</td><td colspan="4"></td></tr>'}
+      <tr class="t-sep"><td colspan="6"></td></tr>
+      <tr class="tot band"><td></td><td class="l" colspan="3">Gesamtbetrag netto</td><td class="m"></td><td class="v r">${eur(d.c.netto)}</td></tr>
+      <tr class="tot"><td></td><td class="l" colspan="3">Umsatzsteuer 0 %${d.c.b0 > 0 ? " ¹" : ""}</td><td class="m">auf ${eur(d.c.b0)}</td><td class="v r">${eur(0)}</td></tr>
+      <tr class="tot"><td></td><td class="l" colspan="3">Umsatzsteuer 19 %</td><td class="m">auf ${eur(d.c.n19)}</td><td class="v r">${eur(d.c.u19)}</td></tr>
+      <tr class="tot grand"><td></td><td class="l" colspan="3">Gesamtbetrag brutto</td><td class="m"></td><td class="v r">${eur(d.c.brutto)}</td></tr>
+      </tbody></table>
+    ${d.c.b0 > 0 ? `<p class="s-foot-note">¹ ${esc(f.fussnote)}</p>` : ""}
+    ${(i.hinweis || "").trim() ? `<p class="s-p" style="margin-top:5mm;font-size:9.5pt">${esc(i.hinweis).replace(/\n/g, "<br>")}</p>` : ""}
+    <div class="s-pay"><p>${esc(d.pay)}</p>${d.giro ? `<div class="s-qr">${qrSVG(d.giro)}GiroCode</div>` : ""}</div>
+    <div class="s-greet">${esc(f.gruss)}<br>${esc(d.ap)}</div>
+  </div>
+  <div class="s-foot">${d.foot.map((b) => `<div>${b.map(esc).join("<br>")}</div>`).join("")}</div>`;
+}
+function renderPreview() {
+  $("#sheet").className = "sheet" + (layoutOf(firma) === "klassisch" ? "" : " m");
+  $("#sheet").innerHTML = sheetHTML(inv, firma);
+  renderLayoutSeg();
+  fitSheet();
+}
+function fitSheet() {
+  const wrap = $("#sheetWrap"), sheet = $("#sheet");
+  const w = wrap.clientWidth; if (!w) return;
+  if (CSS.supports && CSS.supports("zoom", "0.5")) {
+    sheet.style.zoom = 1; const s = w / sheet.offsetWidth; sheet.style.zoom = s; wrap.style.height = "auto"; return;
+  }
+  const s = w / sheet.offsetWidth;
+  sheet.style.transform = `scale(${s})`;
+  wrap.style.height = sheet.offsetHeight * s + "px";
+}
+new ResizeObserver(() => fitSheet()).observe($("#sheetWrap"));
+
+/* ------------------------------------------------------------------ PDF */
+function buildPDFKlassisch(i, f) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const d = derive(i, f);
+  const L = 20, R = 190, W = R - L;
+  const grey = (v) => doc.setTextColor(v, v, v);
+  const font = (size, style = "normal") => { doc.setFont("helvetica", style); doc.setFontSize(size); };
+  doc.setProperties({ title: "Rechnung " + i.nr, author: f.name, subject: "Rechnung", creator: "Rechnungen Autoschilder Sara" });
+
+  function footer() {
+    doc.setDrawColor(166); doc.setLineWidth(0.25); doc.line(L, 272, R, 272);
+    font(7); grey(64);
+    const xs = [L, L + 48, L + 88, L + 126];
+    d.foot.forEach((b, k) => b.forEach((t, j) => doc.text(t, xs[k], 276 + j * 3.3)));
+  }
+  function tableHead(y) {
+    doc.setFillColor(228, 228, 228); doc.rect(L, y, W, 7, "F");
+    font(9.5, "bold"); grey(26);
+    doc.text("Pos.", L + 1.2, y + 4.8); doc.text("Beschreibung", L + 10.5, y + 4.8);
+    doc.text("Menge", 124, y + 4.8, { align: "right" }); doc.text("USt", 138, y + 4.8, { align: "right" });
+    doc.text("Einzelpreis", 162, y + 4.8, { align: "right" }); doc.text("Gesamtpreis", R - 1.2, y + 4.8, { align: "right" });
+    return y + 7;
+  }
+  function sup1(text, x, y, size, style) { const w = doc.getTextWidth(text); font(size * 0.62, style); doc.text("1", x + w + 0.5, y - size * 0.13); font(size, style); }
+  function newPage() { footer(); doc.addPage(); font(8); grey(95); doc.text(`Rechnung Nr. ${i.nr} – Fortsetzung`, L, 20); return 26; }
+
+  // Kopf
+  font(22); grey(26); doc.text(f.name || "", R, 27, { align: "right" });
+  font(8); grey(107); if (f.untertitel) doc.text(f.untertitel, R, 32.5, { align: "right" });
+  font(7); grey(64); doc.text(doc.splitTextToSize(d.sender, 85)[0] || "", L, 50); doc.setDrawColor(64); doc.setLineWidth(0.25); doc.line(L, 51.2, L + 85, 51.2);
+  font(10); grey(26); d.addr.forEach((t, k) => doc.text(doc.splitTextToSize(t, 85)[0], L, 56.5 + k * 5));
+  font(12); doc.text("Rechnungs-Nr.", 120, 50); font(12, "bold"); doc.text(String(i.nr), R, 50, { align: "right" });
+  d.info.forEach(([l, v], k) => { font(8); grey(64); doc.text(l, 120, 56 + k * 4.6); grey(26); doc.text(String(v), R, 56 + k * 4.6, { align: "right" }); });
+
+  // Text
+  let y = 94;
+  font(13, "bold"); grey(26); doc.text("Rechnung Nr. " + i.nr, L, y);
+  if (d.ref) { font(9); grey(64); const ls = doc.splitTextToSize(d.ref, W); y += 6; doc.text(ls, L, y); y += (ls.length - 1) * 3.8; }
+  y += 10; font(10); grey(26); doc.text(d.anrede, L, y);
+  y += 9; doc.text(f.intro1 || "", L, y); y += 5; doc.text(f.intro2 || "", L, y);
+  y += 7; font(6.5, "italic"); grey(127); doc.text("Alle Beträge in EUR inkl. gesetzlicher USt.", R, y, { align: "right" });
+  y = tableHead(y + 1.5);
+
+  // Positionen
+  d.c.rows.forEach((p, k) => {
+    font(9.5, "bold");
+    const nameLines = doc.splitTextToSize(p.name, 78);
+    font(8.5); const zLines = p.zusatz ? doc.splitTextToSize(p.zusatz, 80) : [];
+    const h = 5.5 + (nameLines.length - 1) * 4.1 + zLines.length * 3.8 + 1.5;
+    if (y + h > 236) { y = tableHead(newPage()); }
+    const by = y + 5.2;
+    font(9.5); grey(26); doc.text(`${k + 1}.`, L + 1.2, by);
+    font(9.5, "bold"); doc.text(nameLines, L + 10.5, by);
+    if (Number(p.ust) === 0) sup1(nameLines[nameLines.length - 1], L + 10.5, by + (nameLines.length - 1) * 4.1, 9.5, "bold");
+    font(9.5); doc.text(`${fmtQty(p.menge)} ${p.einheit || "Stk"}`, 124, by, { align: "right" });
+    doc.text(`${Number(p.ust)} %`, 138, by, { align: "right" });
+    doc.text(eur(p.preis), 162, by, { align: "right" }); doc.text(eur(p.gesamt), R - 1.2, by, { align: "right" });
+    if (zLines.length) { font(8.5); grey(89); doc.text(zLines, L + 10.5, by + (nameLines.length - 1) * 4.1 + 4); }
+    y += h;
+  });
+
+  // Summen
+  if (y + 32 > 262) y = newPage();
+  y += 1.5; doc.setDrawColor(166); doc.setLineWidth(0.25); doc.line(L, y, R, y); y += 2;
+  const TL = L + 10.5, TX = TL - 1.5;
+  doc.setFillColor(237, 237, 237); doc.rect(TX, y, R - TX, 6.5, "F");
+  font(9.5); grey(26); doc.text("Gesamtbetrag netto", TL, y + 4.5); doc.text(eur(d.c.netto), R - 1.2, y + 4.5, { align: "right" }); y += 6.5;
+  doc.text("Umsatzsteuer 0 %", TL, y + 4.3); if (d.c.b0 > 0) sup1("Umsatzsteuer 0 %", TL, y + 4.3, 9.5, "normal"); doc.text(eur(0), R - 1.2, y + 4.3, { align: "right" });
+  font(8); grey(107); doc.text("auf " + eur(d.c.b0), 162, y + 4.3, { align: "right" }); y += 6;
+  font(9.5); grey(26); doc.text("Umsatzsteuer 19 %", TL, y + 4.3); doc.text(eur(d.c.u19), R - 1.2, y + 4.3, { align: "right" });
+  font(8); grey(107); doc.text("auf " + eur(d.c.n19), 162, y + 4.3, { align: "right" }); y += 6;
+  doc.setFillColor(218, 218, 218); doc.rect(TX, y, R - TX, 7, "F");
+  font(10, "bold"); grey(26); doc.text("Gesamtbetrag brutto", TL, y + 4.9); doc.text(eur(d.c.brutto), R - 1.2, y + 4.9, { align: "right" }); y += 7;
+
+  // Fußnote, Hinweis, Zahlung
+  if (d.c.b0 > 0) { font(7); grey(89); const ls = doc.splitTextToSize(f.fussnote || "", W - 2.5); y += 5; font(4.5); doc.text("1", L, y - 0.9); font(7); doc.text(ls, L + 2.5, y); y += (ls.length - 1) * 3.1; }
+  if ((i.hinweis || "").trim()) { font(9.5); grey(26); const ls = doc.splitTextToSize(i.hinweis.trim(), W); if (y + ls.length * 4.2 + 8 > 262) y = newPage(); y += 7; doc.text(ls, L, y); y += (ls.length - 1) * 4.2; }
+  const qr = d.giro ? qrMatrix(d.giro) : null;
+  font(9.5); grey(26);
+  const payLines = doc.splitTextToSize(d.pay, qr ? W - 30 : W);
+  const blockH = Math.max(payLines.length * 4.2 + 14, qr ? 28 : 0);
+  if (y + 7 + blockH > 266) y = newPage();
+  y += 8; const payTop = y;
+  doc.text(payLines, L, y);
+  if (qr) {
+    const n = qr.length, size = 23, cell = size / (n + 2), x0 = R - size, y0 = payTop - 4;
+    doc.setFillColor(0, 0, 0);
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr[r][c]) doc.rect(x0 + (c + 1) * cell, y0 + (r + 1) * cell, cell + 0.01, cell + 0.01, "F");
+    font(6); grey(95); doc.text("GiroCode", x0 + size / 2, y0 + size + 2.5, { align: "center" });
+  }
+  y += (payLines.length - 1) * 4.2 + 9;
+  font(9.5); grey(26); doc.text(f.gruss || "", L, y); doc.text(d.ap || "", L, y + 4.6);
+  footer();
+  const n = doc.getNumberOfPages();
+  if (n > 1) for (let p = 1; p <= n; p++) { doc.setPage(p); font(7); grey(127); doc.text(`Seite ${p} von ${n}`, R, 290, { align: "right" }); }
+  return doc;
+}
+function firmaMissing(f) {
+  const m = [];
+  if (!(f.name || "").trim()) m.push("Firmenname");
+  if (!(f.strasse || "").trim() || !(f.plz || "").trim() || !(f.ort || "").trim()) m.push("Anschrift");
+  if (!(f.steuernr || "").trim() && !(f.ustid || "").trim()) m.push("Steuernummer oder USt-IdNr.");
+  return m;
+}
+async function downloadPDF(i, f) {
+  const miss = firmaMissing(f);
+  if (miss.length) { toast("Firmendaten unvollständig: " + miss.join(", ") + ". Bitte unter „Firma“ ergänzen."); setView("firma"); return; }
+  if (!window.jspdf) { toast("PDF-Modul lädt noch – bitte gleich erneut versuchen."); return; }
+  const doc = buildPDF(i, f);
+  const kz = (i.fz && i.fz.kennzeichen) ? "_" + i.fz.kennzeichen.toUpperCase().replace(/[^A-Z0-9]+/g, "-") : "";
+  await offerFile(`Rechnung_${i.nr}${kz}.pdf`.replace(/[\\/:*?"<>|]/g, "-"), doc.output("arraybuffer"), "application/pdf");
+}
+
+/* ------------------------------------------------------------------ Formular */
+function getPath(o, p) { return p.split(".").reduce((a, k) => (a == null ? a : a[k]), o); }
+function setPath(o, p, v) { const ks = p.split("."); let a = o; ks.slice(0, -1).forEach((k) => (a = a[k] = a[k] || {})); a[ks[ks.length - 1]] = v; }
+function fillForm() {
+  $$("[data-bind]").forEach((el) => { const v = getPath(inv, el.dataset.bind); el.value = v == null ? "" : v; });
+  $("#f-ziel").placeholder = String(firma.ziel);
+  $("#f-anrede").placeholder = firma.anrede; $("#f-ap").placeholder = firma.inhaber;
+  $("#f-kunde").value = kunden.some((k) => String(k.nr) === String(inv.kundeNr)) ? String(inv.kundeNr) : "";
+  renderSeg(); renderPositions();
+}
+function renderSeg() {
+  $$("#seg-zahlung button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.zahlung === inv.zahlungsart)));
+  $("#wrap-ziel").hidden = inv.zahlungsart !== "Überweisung";
+}
+function renderChips() {
+  const chips = [`<button class="chip primary" type="button" data-paket="1">+ Zulassungspaket</button>`]
+    .concat(leistungen.map((l, k) => `<button class="chip" type="button" data-leist="${k}">+ ${esc(l.name)}</button>`));
+  $("#chips").innerHTML = chips.join("");
+  $("#leistungen-dl").innerHTML = leistungen.map((l) => `<option value="${esc(l.name)}">`).join("");
+  $("#vorgaenge").innerHTML = VORGAENGE.map((v) => `<option value="${esc(v)}">`).join("");
+}
+function posWarn(p) {
+  if (!(p.name || "").trim()) return "Bezeichnung fehlt";
+  if (!p.preis) return "Preis fehlt";
+  return "";
+}
+function renderPositions() {
+  const box = $("#positions");
+  if (!inv.pos.length) { box.innerHTML = '<div class="empty">Noch keine Positionen. Tippe oben auf „Zulassungspaket“ oder einzelne Leistungen.</div>'; return; }
+  box.innerHTML = inv.pos.map((p, k) => {
+    const w = posWarn(p);
+    return `<div class="pos${w ? " warn" : ""}" data-pos="${k}">
+      <span class="no">${k + 1}.</span>
+      <input type="text" class="name" data-f="name" list="leistungen-dl" value="${esc(p.name)}" aria-label="Leistung ${k + 1}" placeholder="Leistung">
+      <input type="number" class="menge num r" data-f="menge" min="0" step="any" value="${esc(p.menge)}" aria-label="Menge">
+      <input type="text" class="preis num r" data-f="preis" inputmode="decimal" value="${esc(plainEUR(p.preis))}" aria-label="Einzelpreis brutto">
+      <select class="ust" data-f="ust" aria-label="USt-Satz"><option value="19"${Number(p.ust) === 19 ? " selected" : ""}>19 %</option><option value="0"${Number(p.ust) === 0 ? " selected" : ""}>0 %</option></select>
+      <span class="sum num" data-sum>${eur(Math.round((Number(p.menge) > 0 ? Number(p.menge) : 1) * (p.preis || 0)))}</span>
+      <button class="del" type="button" data-del="${k}" aria-label="Position ${k + 1} entfernen">×</button>
+      <input type="text" class="zus" data-f="zusatz" value="${esc(p.zusatz)}" placeholder="Zusatztext (2. Zeile, optional)" aria-label="Zusatztext">
+      ${w ? `<span class="msg">${w}</span>` : ""}
+    </div>`;
+  }).join("");
+}
+function onPosInput(e) {
+  const row = e.target.closest("[data-pos]"); if (!row) return;
+  const k = Number(row.dataset.pos), p = inv.pos[k], f = e.target.dataset.f; if (!f) return;
+  if (f === "preis") p.preis = parseEUR(e.target.value);
+  else if (f === "menge") p.menge = e.target.value === "" ? "" : Number(e.target.value);
+  else if (f === "ust") p.ust = Number(e.target.value);
+  else p[f] = e.target.value;
+  if (f === "name" && e.type === "change") {
+    const l = leistungen.find((x) => x.name === p.name);
+    if (l) { p.preis = l.preis; p.ust = l.ust; p.einheit = l.einheit || "Stk"; if (!p.zusatz) p.zusatz = l.zusatz || ""; renderPositions(); changed(); return; }
+  }
+  if (f === "preis" && e.type === "change") e.target.value = plainEUR(p.preis);
+  row.querySelector("[data-sum]").textContent = eur(Math.round((Number(p.menge) > 0 ? Number(p.menge) : 1) * (p.preis || 0)));
+  const w = posWarn(p); row.classList.toggle("warn", !!w);
+  let m = row.querySelector(".msg"); if (w && !m) { m = document.createElement("span"); m.className = "msg"; row.appendChild(m); } if (m) { if (w) m.textContent = w; else m.remove(); }
+  changed();
+}
+
+let draftTimer = null;
+function changed() {
+  confirmOverwrite = false;
+  if (inv.sample) { inv.sample = false; }
+  renderPreview(); renderTotals(); renderStatus();
+  clearTimeout(draftTimer); draftTimer = setTimeout(saveDraft, 500);
+}
+function saveDraft() { try { localStorage.setItem("as:draft", JSON.stringify({ inv, editingId, savedSnap })); } catch (e) {} }
+function renderTotals() {
+  const c = calc(inv.pos);
+  $("#totals").innerHTML = `<span>Netto <b>${eur(c.netto)}</b></span><span>USt 19 % <b>${eur(c.u19)}</b></span>${c.b0 ? `<span>Gebühren 0 % <b>${eur(c.b0)}</b></span>` : ""}<span class="grand">Brutto <b>${eur(c.brutto)}</b></span>`;
+  $("#pdfBtn").disabled = c.rows.length === 0;
+}
+function snap(i) { const o = clone(i); delete o.sample; return JSON.stringify(o); }
+function renderStatus() {
+  const el = $("#docStatus");
+  if (editingId && savedSnap === snap(inv)) { el.textContent = "Gespeichert"; el.className = "status saved"; }
+  else if (editingId) { el.textContent = "Geändert – nicht gespeichert"; el.className = "status dirty"; }
+  else { el.textContent = inv.sample ? "Beispiel" : "Entwurf"; el.className = "status"; }
+  const sb = $("#saveBtn");
+  sb.textContent = confirmOverwrite ? `Nr. ${inv.nr} überschreiben?` : "Speichern";
+  sb.className = confirmOverwrite ? "btn danger" : "btn";
+  const nh = $("#nextHint"); nh.textContent = loaded ? `nächste freie Nr.: ${nextNr(inv.datum)}` : "";
+}
+
+/* ------------------------------------------------------------------ Aktionen Rechnung */
+async function saveInvoice() {
+  const c = calc(inv.pos);
+  if (!String(inv.nr || "").trim()) { toast("Bitte eine Rechnungsnummer eingeben."); $("#f-nr").focus(); return; }
+  if (!c.rows.length) { toast("Die Rechnung hat noch keine Positionen."); return; }
+  const miss = firmaMissing(firma);
+  if (miss.length) { toast("Firmendaten unvollständig: " + miss.join(", ") + ". Bitte unter „Firma“ ergänzen."); setView("firma"); return; }
+  const id = docId(inv.nr);
+  const exists = archiv.some((r) => r.id === id);
+  if (exists && editingId !== id && !confirmOverwrite) { confirmOverwrite = true; renderStatus(); toast(`Nr. ${inv.nr} ist schon vergeben. Nochmal klicken zum Überschreiben – oder Nummer ändern (frei: ${nextNr(inv.datum)}).`); return; }
+  confirmOverwrite = false;
+  const old = archiv.find((r) => r.id === id);
+  const rec = { ...clone(inv), sample: false, firma: clone(firma), totals: { netto: c.netto, u19: c.u19, b0: c.b0, b19: c.b19, brutto: c.brutto },
+    bezahlt: old ? !!old.bezahlt : inv.zahlungsart !== "Überweisung", savedAt: new Date().toISOString() };
+  delete rec.id;
+  const ok = await guarded(() => Store.setDoc("rechnungen/" + id, rec), `Rechnung ${inv.nr} gespeichert`);
+  if (!ok) { renderStatus(); return; }
+  archiv = archiv.filter((r) => r.id !== id).concat([{ id, ...rec }]); renderSetup();
+  editingId = id; inv.sample = false; savedSnap = snap(inv); saveDraft(); renderStatus(); renderArchiv();
+}
+function newInvoice(prefill) {
+  inv = blankInvoice(); if (prefill) Object.assign(inv, prefill);
+  editingId = null; savedSnap = null; confirmOverwrite = false;
+  fillForm(); changed(); setView("rechnung"); window.scrollTo({ top: 0 });
+}
+function openInvoice(id) {
+  const r = archiv.find((x) => x.id === id); if (!r) return;
+  const o = clone(r); ["id", "firma", "totals", "bezahlt", "savedAt"].forEach((k) => delete o[k]);
+  inv = o; editingId = id; savedSnap = snap(inv); confirmOverwrite = false;
+  fillForm(); renderPreview(); renderTotals(); renderStatus(); saveDraft(); setView("rechnung"); window.scrollTo({ top: 0 });
+}
+
+/* ------------------------------------------------------------------ Archiv */
+function renderArchiv() {
+  const q = ($("#archivSearch").value || "").trim().toLowerCase();
+  const list = archiv.slice().sort((a, b) => (b.datum || "").localeCompare(a.datum || "") || String(b.nr).localeCompare(String(a.nr)));
+  const year = todayISO().slice(0, 4);
+  const thisYear = list.filter((r) => (r.datum || "").startsWith(year));
+  const offen = list.filter((r) => !r.bezahlt);
+  $("#kpis").innerHTML = `<div class="kpi"><span>Rechnungen ${year}</span><b class="num">${thisYear.length}</b></div>
+    <div class="kpi"><span>Umsatz ${year} brutto</span><b class="num">${eur(thisYear.reduce((s, r) => s + (r.totals?.brutto || 0), 0))}</b></div>
+    <div class="kpi"><span>davon USt 19 %</span><b class="num">${eur(thisYear.reduce((s, r) => s + (r.totals?.u19 || 0), 0))}</b></div>
+    <div class="kpi"><span>Offen (${offen.length})</span><b class="num">${eur(offen.reduce((s, r) => s + (r.totals?.brutto || 0), 0))}</b></div>`;
+  const rows = list.filter((r) => !q || [r.nr, r.adr?.name, r.fz?.kennzeichen, r.kundeNr].join(" ").toLowerCase().includes(q));
+  $("#archivBody").innerHTML = rows.length ? rows.map((r) => `<tr>
+    <td class="num"><b>${esc(r.nr)}</b></td><td class="num">${fmtDate(r.datum)}</td><td>${esc(r.adr?.name || "—")}</td><td class="num">${esc((r.fz?.kennzeichen || "").toUpperCase())}</td>
+    <td>${esc(r.zahlungsart)}</td><td class="r num">${eur(r.totals?.brutto)}</td>
+    <td><button class="pill ${r.bezahlt ? "paid" : "open"}" data-paid="${esc(r.id)}" title="Status umschalten">${r.bezahlt ? "bezahlt" : "offen"}</button></td>
+    <td class="r" style="white-space:nowrap"><button class="btn small" data-open="${esc(r.id)}">Öffnen</button> <button class="btn small" data-pdf="${esc(r.id)}">PDF</button> <button class="btn small link" data-delinv="${esc(r.id)}">Löschen</button></td></tr>`).join("")
+    : `<tr><td colspan="8"><div class="empty">${archiv.length ? "Keine Treffer." : "Noch keine Rechnung gespeichert. Auf „Rechnung“ ausfüllen und „Speichern“ drücken – sie erscheint dann hier."}</div></td></tr>`;
+}
+async function onArchivClick(e) {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.open) openInvoice(b.dataset.open);
+  if (b.dataset.pdf) { const r = archiv.find((x) => x.id === b.dataset.pdf); if (r) downloadPDF(r, r.firma ? { ...r.firma, layout: r.firma.layout || "klassisch" } : firma); }
+  if (b.dataset.paid) { const r = archiv.find((x) => x.id === b.dataset.paid); if (!r) return; r.bezahlt = !r.bezahlt;
+    const { id, ...body } = r; if (await guarded(() => Store.setDoc("rechnungen/" + id, body))) renderArchiv(); else r.bezahlt = !r.bezahlt; }
+  if (b.dataset.delinv) {
+    if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Wirklich löschen?"; b.classList.remove("link"); b.classList.add("danger"); setTimeout(() => renderArchiv(), 4000); return; }
+    const id = b.dataset.delinv;
+    if (await guarded(() => Store.delDoc("rechnungen/" + id), "Rechnung gelöscht")) { archiv = archiv.filter((x) => x.id !== id); if (editingId === id) { editingId = null; savedSnap = null; renderStatus(); } renderArchiv(); }
+  }
+}
+function exportCSV() {
+  if (!archiv.length) { toast("Archiv ist leer."); return; }
+  const n = (c) => ((c || 0) / 100).toFixed(2).replace(".", ",");
+  const q = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const head = ["Rechnungs-Nr.", "Datum", "Kunde", "Kunden-Nr.", "Kennzeichen", "Vorgang", "Zahlungsart", "Netto 19 %", "USt 19 %", "Gebühren 0 %", "Netto gesamt", "Brutto", "Status"];
+  const lines = archiv.slice().sort((a, b) => String(a.nr).localeCompare(String(b.nr))).map((r) => [q(r.nr), fmtDate(r.datum), q(r.adr?.name), q(r.kundeNr), q((r.fz?.kennzeichen || "").toUpperCase()), q(r.fz?.vorgang),
+    q(r.zahlungsart), n((r.totals?.b19 || 0) - (r.totals?.u19 || 0)), n(r.totals?.u19), n(r.totals?.b0), n(r.totals?.netto), n(r.totals?.brutto), r.bezahlt ? "bezahlt" : "offen"].join(";"));
+  offerFile(`Rechnungsjournal_${todayISO()}.csv`, "﻿" + [head.join(";")].concat(lines).join("\r\n"), "text/csv");
+}
+
+/* ------------------------------------------------------------------ Kunden */
+let kundeEditNr = null;
+function renderKunden() {
+  const list = kunden.slice().sort((a, b) => String(a.nr).localeCompare(String(b.nr), "de", { numeric: true }));
+  $("#kundenBody").innerHTML = list.length ? list.map((k) => `<tr><td class="num">${esc(k.nr)}</td><td><b>${esc(k.name)}</b>${k.zusatz ? `<br><span class="note">${esc(k.zusatz)}</span>` : ""}</td>
+    <td>${esc(k.strasse)}<br>${esc([k.plz, k.ort].filter(Boolean).join(" "))}${k.land ? ", " + esc(k.land) : ""}</td>
+    <td class="r" style="white-space:nowrap"><button class="btn small primary" data-kinv="${esc(k.nr)}">Rechnung</button> <button class="btn small" data-kedit="${esc(k.nr)}">Bearbeiten</button> <button class="btn small link" data-kdel="${esc(k.nr)}">Löschen</button></td></tr>`).join("")
+    : `<tr><td colspan="4"><div class="empty">Noch keine Stammkunden. Rechts anlegen oder auf der Rechnung „Als Stammkunde speichern“.</div></td></tr>`;
+  $("#f-kunde").innerHTML = `<option value="">— Laufkunde / Anschrift manuell —</option>` + list.map((k) => `<option value="${esc(k.nr)}">${esc(k.nr)} · ${esc(k.name)}</option>`).join("");
+  if (inv) $("#f-kunde").value = kunden.some((k) => String(k.nr) === String(inv.kundeNr)) ? String(inv.kundeNr) : "";
+}
+function nextKundenNr() { const nums = kunden.map((k) => parseInt(k.nr, 10)).filter((n) => !isNaN(n)); return String(nums.length ? Math.max(...nums) + 1 : 1001); }
+function kundeForm(k) {
+  kundeEditNr = k ? String(k.nr) : null;
+  $("#kundeFormTitle").textContent = k ? "Kunde bearbeiten" : "Neuer Kunde";
+  const v = k || { nr: nextKundenNr() };
+  ["nr", "name", "zusatz", "strasse", "plz", "ort", "land"].forEach((f) => ($("#k-" + f).value = v[f] || ""));
+}
+async function saveKunden(msg) { return guarded(() => Store.setDoc("config/kunden", { items: kunden }), msg); }
+function adrToKunde(nr) { const a = inv.adr; return { nr, name: a.name || "", zusatz: a.zusatz || "", strasse: a.strasse || "", plz: a.plz || "", ort: a.ort || "", land: a.land || "" }; }
+
+/* ------------------------------------------------------------------ Leistungen */
+function renderLeistungen() {
+  $("#leistBody").innerHTML = leistungen.map((l, k) => `<tr data-l="${k}">
+    <td><input type="text" data-lf="name" value="${esc(l.name)}" aria-label="Leistung"></td>
+    <td><input type="text" data-lf="zusatz" value="${esc(l.zusatz)}" aria-label="Zusatztext"></td>
+    <td style="width:90px"><input type="text" data-lf="einheit" value="${esc(l.einheit || "Stk")}" aria-label="Einheit"></td>
+    <td style="width:120px"><input type="text" class="num r" data-lf="preis" inputmode="decimal" value="${esc(plainEUR(l.preis))}" aria-label="Preis brutto"></td>
+    <td style="width:90px"><select data-lf="ust" aria-label="USt"><option value="19"${Number(l.ust) === 19 ? " selected" : ""}>19 %</option><option value="0"${Number(l.ust) === 0 ? " selected" : ""}>0 %</option></select></td>
+    <td class="r num" data-net>${eur(Number(l.ust) === 0 ? l.preis : Math.round(l.preis * 100 / 119))}</td>
+    <td style="width:90px"><input type="number" class="num r" data-lf="paket" min="0" step="1" value="${esc(l.paket || 0)}" aria-label="Menge im Paket"></td>
+    <td class="r"><button class="btn small link" data-ldel="${k}">Entfernen</button></td></tr>`).join("");
+}
+
+/* ------------------------------------------------------------------ Firma */
+function renderFirma() {
+  const ibanOk = ibanValid(firma.iban);
+  $("#firmaForm").innerHTML = `<div class="grid">${FIRMA_FIELDS.map(([k, label, span, type]) => {
+    const v = firma[k];
+    if (type === "check") return `<div class="field span-${span}"><span class="lbl">${label}</span><label style="display:flex;gap:8px;align-items:center;font-weight:500"><input type="checkbox" id="fi-${k}" ${v !== false ? "checked" : ""}> bei Überweisung anzeigen</label></div>`;
+    if (type === "area") return `<div class="field span-${span}"><label for="fi-${k}">${label}</label><textarea id="fi-${k}" rows="3">${esc(v)}</textarea></div>`;
+    return `<div class="field span-${span}"><label for="fi-${k}">${label}</label><input type="${type === "number" ? "number" : "text"}" id="fi-${k}" value="${esc(v)}" ${type === "number" ? 'min="0" max="365"' : ""}>${k === "iban" ? `<span class="hint" id="ibanHint" style="color:var(${ibanOk ? "--ok" : "--danger"})">${!firma.iban ? "" : ibanOk ? "Prüfziffer gültig" : "IBAN ungültig – GiroCode wird nicht gedruckt"}</span>` : ""}</div>`;
+  }).join("")}</div>`;
+}
+
+/* ------------------------------------------------------------------ Navigation */
+const VIEWS = ["rechnung", "archiv", "kunden", "leistungen", "firma"];
+function setView(v, push = true) {
+  if (!VIEWS.includes(v)) v = "rechnung";
+  $$("[data-section]").forEach((s) => (s.hidden = s.dataset.section !== v));
+  $$(".tab").forEach((t) => (t.getAttribute("data-view") === v ? t.setAttribute("aria-current", "page") : t.removeAttribute("aria-current")));
+  $("#actionbar").hidden = v !== "rechnung";
+  if (push && location.hash !== "#" + v) { try { history.replaceState(null, "", "#" + v); } catch (e) { location.hash = v; } }
+  if (v === "rechnung") requestAnimationFrame(fitSheet);
+  if (v === "archiv") renderArchiv();
+}
+window.addEventListener("hashchange", () => setView(location.hash.slice(1), false));
+
+let toastTimer = null;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3800); }
+function renderStorePill() {
+  const p = $("#storePill");
+  if (Store.mode === "idb") { p.textContent = "Daten nur lokal auf diesem Rechner"; p.className = "store-pill ok"; p.title = "Alles liegt im Browser (IndexedDB). Nichts wird ins Internet übertragen."; }
+  else { p.textContent = "Speicher gesperrt – Daten gehen beim Schließen verloren"; p.className = "store-pill warn"; p.title = "Der Browser erlaubt keinen lokalen Speicher (z. B. privates Fenster)."; }
+}
+
+/* ------------------------------------------------------------------ Events */
+$("#form").addEventListener("input", (e) => {
+  const b = e.target.dataset.bind;
+  if (b) { setPath(inv, b, e.target.value); if (b === "datum" && !editingId && inv.sample === false) { /* Nummer bleibt manuell */ } changed(); return; }
+  if (e.target.closest("#positions")) onPosInput(e);
+});
+$("#form").addEventListener("change", (e) => { if (e.target.closest("#positions")) onPosInput(e); });
+$("#positions").addEventListener("click", (e) => { const d = e.target.closest("[data-del]"); if (d) { inv.pos.splice(Number(d.dataset.del), 1); renderPositions(); changed(); } });
+$("#chips").addEventListener("click", (e) => {
+  const c = e.target.closest("button"); if (!c) return;
+  if (c.dataset.paket) { const add = paketPositions(); add.forEach((p) => { const ex = inv.pos.find((x) => x.name === p.name); if (!ex) inv.pos.push(p); }); }
+  else { const l = leistungen[Number(c.dataset.leist)]; const ex = inv.pos.find((x) => x.name === l.name); if (ex) ex.menge = (Number(ex.menge) || 1) + 1; else inv.pos.push(posFrom(l, 1)); }
+  renderPositions(); changed();
+});
+$("#addPos").addEventListener("click", () => { inv.pos.push({ id: uid(), name: "", zusatz: "", einheit: "Stk", menge: 1, preis: 0, ust: 19 }); renderPositions(); changed(); const ins = $$("#positions .name"); ins[ins.length - 1]?.focus(); });
+$("#seg-zahlung").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; inv.zahlungsart = b.dataset.zahlung; renderSeg(); changed(); });
+$("#f-kunde").addEventListener("change", (e) => {
+  const k = kunden.find((x) => String(x.nr) === e.target.value);
+  inv.kundeNr = k ? String(k.nr) : "";
+  if (k) inv.adr = { name: k.name || "", zusatz: k.zusatz || "", strasse: k.strasse || "", plz: k.plz || "", ort: k.ort || "", land: k.land || "" };
+  fillForm(); changed();
+});
+$("#saveCustomer").addEventListener("click", async () => {
+  if (!(inv.adr.name || "").trim()) { toast("Erst Name / Firma eingeben."); $("#f-name").focus(); return; }
+  const existing = kunden.find((k) => String(k.nr) === String(inv.kundeNr));
+  const nr = existing ? existing.nr : nextKundenNr();
+  kunden = kunden.filter((k) => String(k.nr) !== String(nr)).concat([adrToKunde(String(nr))]);
+  if (await saveKunden(existing ? `Kunde ${nr} aktualisiert` : `Als Kunde ${nr} gespeichert`)) { inv.kundeNr = String(nr); renderKunden(); changed(); }
+});
+$("#saveBtn").addEventListener("click", saveInvoice);
+$("#layoutSeg").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b || b.dataset.layout === layoutOf(firma)) return;
+  firma.layout = b.dataset.layout; renderPreview();
+  await guarded(() => Store.setDoc("config/firma", firma));
+});
+$("#pdfBtn").addEventListener("click", () => downloadPDF(inv, firma));
+$("#newBtn").addEventListener("click", () => newInvoice());
+$$(".tab").forEach((t) => t.addEventListener("click", () => setView(t.dataset.view)));
+$("#archivBody").addEventListener("click", onArchivClick);
+$("#archivSearch").addEventListener("input", renderArchiv);
+$("#csvBtn").addEventListener("click", exportCSV);
+
+$("#kundenBody").addEventListener("click", async (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.kedit) kundeForm(kunden.find((k) => String(k.nr) === b.dataset.kedit));
+  if (b.dataset.kinv) { const k = kunden.find((x) => String(x.nr) === b.dataset.kinv); newInvoice({ kundeNr: String(k.nr), adr: { name: k.name || "", zusatz: k.zusatz || "", strasse: k.strasse || "", plz: k.plz || "", ort: k.ort || "", land: k.land || "" } }); }
+  if (b.dataset.kdel) {
+    if (b.dataset.confirm !== "1") { b.dataset.confirm = "1"; b.textContent = "Wirklich löschen?"; b.classList.remove("link"); b.classList.add("danger"); setTimeout(renderKunden, 4000); return; }
+    const before = kunden; kunden = kunden.filter((k) => String(k.nr) !== b.dataset.kdel);
+    if (await saveKunden("Kunde gelöscht")) renderKunden(); else kunden = before;
+  }
+});
+$("#kundeNeu").addEventListener("click", () => kundeForm(null));
+$("#kundeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const v = {}; ["nr", "name", "zusatz", "strasse", "plz", "ort", "land"].forEach((f) => (v[f] = $("#k-" + f).value.trim()));
+  if (!v.nr || !v.name) { toast("Kunden-Nr. und Name sind Pflicht."); return; }
+  if (kunden.some((k) => String(k.nr) === v.nr && String(k.nr) !== kundeEditNr)) { toast(`Kunden-Nr. ${v.nr} ist schon vergeben.`); return; }
+  const before = kunden;
+  kunden = kunden.filter((k) => String(k.nr) !== kundeEditNr && String(k.nr) !== v.nr).concat([v]);
+  if (await saveKunden(`Kunde ${v.nr} gespeichert`)) { renderKunden(); kundeForm(null); } else kunden = before;
+});
+
+$("#leistBody").addEventListener("input", (e) => {
+  const tr = e.target.closest("[data-l]"); const f = e.target.dataset.lf; if (!tr || !f) return; const l = leistungen[Number(tr.dataset.l)];
+  if (f === "preis") l.preis = parseEUR(e.target.value); else if (f === "ust") l.ust = Number(e.target.value); else if (f === "paket") l.paket = Math.max(0, parseInt(e.target.value || "0", 10) || 0); else l[f] = e.target.value;
+  tr.querySelector("[data-net]").textContent = eur(Number(l.ust) === 0 ? l.preis : Math.round(l.preis * 100 / 119));
+});
+$("#leistBody").addEventListener("change", (e) => { if (e.target.dataset.lf === "preis") { const l = leistungen[Number(e.target.closest("[data-l]").dataset.l)]; e.target.value = plainEUR(l.preis); } });
+$("#leistBody").addEventListener("click", (e) => { const b = e.target.closest("[data-ldel]"); if (b) { leistungen.splice(Number(b.dataset.ldel), 1); renderLeistungen(); } });
+$("#leistAdd").addEventListener("click", () => { leistungen.push({ name: "", zusatz: "", einheit: "Stk", preis: 0, ust: 19, paket: 0 }); renderLeistungen(); const ins = $$('#leistBody [data-lf="name"]'); ins[ins.length - 1]?.focus(); });
+$("#leistSave").addEventListener("click", async () => {
+  leistungen = leistungen.filter((l) => (l.name || "").trim());
+  const names = leistungen.map((l) => l.name.trim()); if (new Set(names).size !== names.length) { toast("Jede Leistung braucht einen eindeutigen Namen."); return; }
+  if (await guarded(() => Store.setDoc("config/leistungen", { items: leistungen }), "Leistungen gespeichert")) { renderLeistungen(); renderChips(); }
+});
+$("#firmaForm").addEventListener("input", (e) => { if (e.target.id === "fi-iban") { const ok = ibanValid(e.target.value); const h = $("#ibanHint"); h.textContent = !e.target.value.trim() ? "" : ok ? "Prüfziffer gültig" : "IBAN ungültig – GiroCode wird nicht gedruckt"; h.style.color = `var(${ok ? "--ok" : "--danger"})`; } });
+$("#firmaSave").addEventListener("click", async () => {
+  const next = clone(firma);
+  FIRMA_FIELDS.forEach(([k, , , type]) => { const el = $("#fi-" + k); if (!el) return; next[k] = type === "check" ? el.checked : type === "number" ? Math.max(0, parseInt(el.value || "0", 10) || 0) : el.value.trim(); });
+  next.iban = next.iban.replace(/\s+/g, "").toUpperCase();
+  if (await guarded(() => Store.setDoc("config/firma", next), "Firmendaten gespeichert")) { firma = next; renderFirma(); fillForm(); renderPreview(); renderStatus(); renderSetup(); }
+});
+
+/* ------------------------------------------------------------------ Ersteinrichtung & Datensicherung */
+let lastBackup = null;
+let pendingImport = null;
+function daysSince(iso) { return iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null; }
+function renderSetup() {
+  $("#setupBanner").hidden = !loaded || !!(firma.name || "").trim();
+  const d = daysSince(lastBackup);
+  $("#backupInfo").textContent = lastBackup ? `letzte Sicherung: ${fmtDate(lastBackup.slice(0, 10))}` : "noch keine Sicherung";
+  const hint = $("#archivBackupHint");
+  if (archiv.length && (d === null || d > 30)) { hint.innerHTML = `${d === null ? "Noch keine Sicherung vorhanden." : `Letzte Sicherung vor ${d} Tagen.`} <button class="btn link small" type="button" id="archivBackupBtn">Jetzt sichern</button>`; }
+  else hint.textContent = lastBackup ? `Letzte Sicherung: ${fmtDate(lastBackup.slice(0, 10))}` : "";
+  document.title = firma.name ? `Rechnungen · ${firma.name}` : "Rechnungen";
+  $("#brandName").textContent = firma.name || "Rechnungen";
+}
+async function exportBackup() {
+  const data = { app: "rechnungsgenerator", format: 1, exportedAt: new Date().toISOString(), firma, leistungen, kunden, rechnungen: archiv };
+  offerFile(`Rechnungen_Sicherung_${todayISO()}.json`, JSON.stringify(data, null, 2), "application/json");
+  lastBackup = data.exportedAt;
+  await guarded(() => Store.setDoc("meta/backup", { at: lastBackup }));
+  renderSetup();
+}
+function validBackup(d) {
+  return d && d.app === "rechnungsgenerator" && d.firma && typeof d.firma === "object" && Array.isArray(d.leistungen) && Array.isArray(d.kunden) && Array.isArray(d.rechnungen);
+}
+async function onImportFile(file) {
+  if (!file) return;
+  let d = null;
+  try { d = JSON.parse(await file.text()); } catch (e) { toast("Die Datei ist keine gültige Sicherung (kein JSON)."); return; }
+  if (!validBackup(d)) { toast("Die Datei ist keine Sicherung dieses Rechnungsgenerators."); return; }
+  pendingImport = d;
+  const box = $("#importConfirm");
+  box.innerHTML = `<div><b>Sicherung vom ${esc(fmtDate(String(d.exportedAt || "").slice(0, 10)) || "?")}</b> · ${esc(d.firma.name || "ohne Firmenname")} · ${d.rechnungen.length} Rechnungen, ${d.kunden.length} Kunden, ${d.leistungen.length} Leistungen.<br>Die Daten auf diesem Rechner werden dabei vollständig ersetzt.</div>
+    <div class="toolbar"><button class="btn danger small" type="button" id="importDo">Einspielen</button><button class="btn small" type="button" id="importCancel">Abbrechen</button></div>`;
+  box.hidden = false; setView("firma"); box.scrollIntoView({ block: "center" });
+}
+async function doImport() {
+  const d = pendingImport; if (!d) return;
+  const entries = [["config/firma", { ...DEFAULT_FIRMA, ...d.firma }], ["config/leistungen", { items: d.leistungen }], ["config/kunden", { items: d.kunden }], ["meta/backup", { at: d.exportedAt || new Date().toISOString() }]];
+  d.rechnungen.forEach((r) => { const { id, ...body } = r; entries.push(["rechnungen/" + (id || docId(r.nr)), body]); });
+  if (await guarded(() => Store.replaceAll(entries), "Sicherung eingespielt")) {
+    pendingImport = null; $("#importConfirm").hidden = true;
+    try { localStorage.removeItem("as:draft"); } catch (e) {}
+    editingId = null; savedSnap = null;
+    await load(); inv = blankInvoice(); fillForm(); changed(); setView("rechnung");
+  }
+}
+async function wipeAll(btn) {
+  if (btn.dataset.confirm !== "1") { btn.dataset.confirm = "1"; btn.textContent = "Wirklich alles löschen? Nochmal klicken"; btn.classList.remove("link"); btn.classList.add("danger");
+    setTimeout(() => { btn.dataset.confirm = ""; btn.textContent = "Alle Daten auf diesem Rechner löschen"; btn.classList.add("link"); btn.classList.remove("danger"); }, 5000); return; }
+  if (await guarded(() => Store.replaceAll([]), "Alle Daten auf diesem Rechner gelöscht")) {
+    try { localStorage.removeItem("as:draft"); } catch (e) {}
+    firma = clone(DEFAULT_FIRMA); leistungen = clone(DEFAULT_LEISTUNGEN); kunden = []; archiv = []; lastBackup = null;
+    inv = exampleInvoice(); editingId = null; savedSnap = null;
+    renderChips(); renderKunden(); renderLeistungen(); renderFirma(); fillForm(); renderPreview(); renderTotals(); renderStatus(); renderArchiv(); renderSetup(); setView("rechnung");
+  }
+}
+$("#backupBtn").addEventListener("click", exportBackup);
+$("#importFile").addEventListener("change", (e) => { onImportFile(e.target.files[0]); e.target.value = ""; });
+$("#importConfirm").addEventListener("click", (e) => { if (e.target.id === "importDo") doImport(); if (e.target.id === "importCancel") { pendingImport = null; $("#importConfirm").hidden = true; } });
+$("#wipeBtn").addEventListener("click", (e) => wipeAll(e.currentTarget));
+$("#setupBanner").addEventListener("click", (e) => { const b = e.target.closest("[data-goto]"); if (b) setView(b.dataset.goto); });
+$("#archivBackupHint").addEventListener("click", (e) => { if (e.target.id === "archivBackupBtn") exportBackup(); });
+
+/* ------------------------------------------------------------------ Start */
+function restoreDraft() {
+  try { const d = JSON.parse(localStorage.getItem("as:draft") || "null"); if (d && d.inv && Array.isArray(d.inv.pos)) { inv = d.inv; editingId = d.editingId || null; savedSnap = d.savedSnap || null; return true; } } catch (e) {}
+  return false;
+}
+function boot() {
+  if (!restoreDraft()) inv = exampleInvoice();
+  renderChips(); renderKunden(); renderLeistungen(); renderFirma(); fillForm(); renderPreview(); renderTotals(); renderStatus(); renderArchiv();
+  setView(location.hash.slice(1) || "rechnung", false);
+  kundeForm(null);
+  load();
+}
+async function load() {
+  if (Store.mode !== "idb") await Store.init();
+  renderStorePill();
+  try {
+    const [f, l, k, a] = await Promise.all([Store.getDoc("config/firma"), Store.getDoc("config/leistungen"), Store.getDoc("config/kunden"), Store.list("rechnungen")]);
+    if (f) firma = { ...DEFAULT_FIRMA, ...f };
+    if (l && Array.isArray(l.items) && l.items.length) leistungen = l.items;
+    if (k && Array.isArray(k.items)) kunden = k.items;
+    archiv = a || [];
+    const mb = await Store.getDoc("meta/backup"); lastBackup = mb && mb.at ? mb.at : null;
+  } catch (e) { toast("Daten konnten nicht geladen werden – es gelten die Standardwerte."); }
+  loaded = true;
+  if (inv.sample) inv.nr = nextNr(inv.datum);
+  if (editingId && !archiv.some((r) => r.id === editingId)) { editingId = null; savedSnap = null; }
+  $("#brandName").textContent = firma.name;
+  renderChips(); renderKunden(); renderLeistungen(); renderFirma(); fillForm(); renderPreview(); renderTotals(); renderStatus(); renderArchiv(); kundeForm(null); renderSetup();
+}
+window.addEventListener("load", () => fitSheet());
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
+boot();
+</script>
+</body>
+</html>
